@@ -1,0 +1,410 @@
+---
+title: "Supervised Learning Report"
+author: "Gaudio Carmelo Garozzo- Mattia Campagna- Davoud Davide Kalantari"
+date: "2025-03-26"
+output:
+  html_document: default
+  pdf_document: default
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+```{r setup,include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+set.seed(123)
+
+library(dplyr)
+library(ggplot2)
+library(visdat)
+library(skimr)
+library(corrplot)
+library(lubridate)
+library(here)
+```
+
+## 1.1. Basic data visualization
+
+```{r chunk2}
+ad_train <- read.csv(here("advertising_train.csv"))
+
+# rename (as you did)
+colnames(ad_train)[colnames(ad_train) %in% c("Daily.Time.Spent.on.Site", "Daily.Internet.Usage")] <-
+  c("DT.on.Site", "DI.Usage")
+
+# drop index column
+ad_train <- ad_train %>% select(-X)
+
+# parse timestamp
+ad_train <- ad_train %>%
+  mutate(
+    Timestamp = ymd_hms(Timestamp),
+    Male = factor(Male, levels = c(0,1), labels = c("Female","Male")),
+    Clicked.on.Ad = factor(Clicked.on.Ad, levels = c(0,1), labels = c("No","Yes"))
+  )
+
+str(ad_train)
+```
+
+Where the variables are defined as follows:
+
+X: Variable used as an index
+DT.on.Site: Indicates the number of minutes a user spends on the website each day.s
+Age: Age of the user visiting the website.
+Area.Income: Income of the area where the user is located.
+DI.Usage: Indicates how many minutes per day a user spends on the Internet in general, not just on the specific website.
+Ad.Topic.Line: The content of the advertisement.
+City: City of the user.
+Male: Binary variable that indicates 1 if the user is male, 0 if the user is female.
+Country: Country of the user.
+Timestamp: Indicates when a user viewed the advertisement, including the exact date and time.
+Clicked.on.Ad: Binary variable that indicates 1 if the user clicked on the advertisement, 0 otherwise.
+
+```{r chunk3}
+head(ad_train)
+```
+
+```{r chunk4}
+vis_dat(ad_train)
+```
+
+```{r chunk5}
+vis_miss(ad_train)
+```
+
+We observe that there are no missing values.
+
+```{r}
+skim(ad_train)
+```
+
+The skim function provides us with valuable insights. Our categorical variables have a high number of unique values. Most numerical variables, except *Male* and *Clicked on Ad*, exhibit moderate dispersion, as their standard deviation is neither too large nor too small compared to the mean. In contrast, *Male* and *Clicked on Ad* have a standard deviation close to their mean because they are binary variables, taking only the values 0 or 1.
+
+```{r chunk43}
+ad_train_num <- ad_train %>% 
+  select(DT.on.Site, Age, Area.Income, DI.Usage, Male, Clicked.on.Ad)
+s<-apply(ad_train_num,2,sd) 
+mx<-apply(ad_train_num,2,mean)
+cv<-s/mx
+
+df_cv <- data.frame(
+  Standard_Deviation = s,
+  Mean = mx,
+  Coefficient_of_Variation = cv
+)
+
+print(df_cv, digits = 3)
+```
+
+To confirm the above, we observe that the coefficients of variation reflect the previous observations.
+
+## 1.2. Analysis of univariate statistics
+
+We previously selected the numerical variables and assigned them to a dataframe to be used for this type of analysis, excluding the index variable as it has no statistical relevance.
+
+```{r chunk21}
+head(ad_train_num)
+```
+
+```{r chunk22, include = FALSE}
+ad_train_cont <- ad_train %>%
+dplyr::select(DT.on.Site, Age, Area.Income, DI.Usage)
+
+```
+
+```{r}
+R <- cor(ad_train_cont)
+R
+```
+
+The correlation matrix is computed only on continuous predictors to avoid misleading interpretations involving binary variables. 
+
+```{r chunk32}
+
+corrplot.mixed(R, upper="ellipse", tl.cex=0.7, tl.col='black') 
+```
+
+The analysis of the correlation matrix reveals some interesting insights into user behavior regarding ad clicks. 
+In particular, there is a strong negative relationship between the time spent on the website (DT.on.Site) and the number of ad clicks (Clicked.on.Ad), as well as between total Internet usage (DI.Usage) and the likelihood of interacting with ads. This suggests that users who are more familiar with the web or who spend a significant amount of time online may be less likely to click on ads, possibly because they are more accustomed to recognizing and ignoring them. 
+Another relevant aspect concerns user age: the positive correlation between Age and Clicked.on.Ad indicates that older users tend to click on ads more frequently than younger ones. 
+Conversely, the income level of the area users come from (Area.Income) shows a negative correlation with the number of clicks, suggesting that users from wealthier areas may be less interested in online advertisements.  
+Finally, gender (Male) does not seem to play a significant role in ad interaction dynamics, as its correlation with Clicked.on.Ad is very weak. This indicates that, at least within the analyzed dataset, the likelihood of clicking on an ad does not significantly depend on whether the user is male or female.
+
+
+
+
+## 1.3. Additional graphical and numerical summaries 
+
+Having observed that the variables correlated with our target variable are *DT on Site*, *Age*, *Area Income*, and *DI Usage*, we proceed with a further graphical visualization of their distributions.
+
+```{r chunk41}
+ggplot(ad_train, aes(x = DT.on.Site)) +
+  geom_histogram(bins = 30, fill = "lightblue", color = "black") +
+  labs(x = "Daily Time Spent on Site", title = "Histogram of DT.on.Site")
+```
+
+The histogram shows the distribution with values ranging from approximately 35 to 90. The distribution is uneven, with a main mode between 75 and 85 and secondary peaks, indicating different user engagement patterns. The slight asymmetry suggests that most users spend a relatively long time on the site. 
+
+```{r chunk41_2}
+ggplot(ad_train, aes(x = Age)) +
+  geom_histogram(bins = 25, fill = "lightblue", color = "black") +
+  labs(x = "Age", title = "Histogram of Age")
+```
+
+The distribution shows a main mode between 30 and 35 years, indicating that most users fall within this age range. Additionally, the data distribution has a slight positive skew, meaning that most of the data is concentrated around the mean, with a tail extending towards higher ages.
+
+```{r chunk41_3}
+ggplot(ad_train, aes(x = Area.Income)) +
+  geom_histogram(bins = 30, fill = "lightblue", color = "black") +
+  labs(x = "Area Income", title = "Histogram of Area.Income")
+```
+
+The histogram of Area.Income shows a distribution characterized by positive skewness, leading us to conclude that the majority of users live in areas where the average income is not lower than 50,000. However, we notice a decline starting from around 70,000, which is due to the fact that there are far fewer areas with such a high average income.
+
+```{r chunk41_4}
+ggplot(ad_train, aes(x = DI.Usage)) +
+  geom_histogram(bins = 30, fill = "lightblue", color = "black") +
+  labs(x = "Daily Internet Usage", title = "Histogram of DI.Usage")
+```
+
+The histogram shows the distribution of daily Internet use, concentrated between 100 and 250 minutes, with a peak around 220/230 minutes. The distribution is approximately symmetrical, indicating a relatively even usage with no obvious extreme values.
+
+```{r chunk41_5}
+ggplot(ad_train, aes(x = Clicked.on.Ad)) +
+  geom_bar(fill = "lightblue", color = "black") +
+  labs(x = "Clicked on Ad", y = "Count", title = "Target distribution")
+```
+
+The data distribution is uniform, meaning it is perfectly symmetrical.
+
+
+```{r chunk42}
+boxplot(ad_train_num$Area.Income, col="lightblue", las=1, cex.axis=0.8)
+```
+The only boxplot that makes sense to display is *Area.Income*, as it is the only one with outliers. Additionally, a simultaneous representation of all numerical variables would lead to a distorted visualization because *Area.Income* has a larger order of magnitude compared to the other variables.
+
+```{r}
+boxplot.stats(ad_train_num$Area.Income)$out
+```
+ 
+### Some cross-analyses
+
+Now we analyze the dependency between pairs of variables using a matrix scatter plot, which allows us to simultaneously observe all relationships between the variables.
+
+```{r chunk45}
+# Scatterplot matrix only for continuous predictors
+pairs(ad_train_cont, pch = 20, cex = 0.35, col = "blue")
+```
+
+The analysis of dependencies allows us to infer that there are no strong relationships between any particular pair of variables, as the distribution of points in all individual scatter plots appears rather scattered without a clear pattern. 
+
+However, we want to highlight two specific cases:  
+1. The relationship between *Area.Income* and *DI.Usage*, which suggests that in areas with lower income, internet usage tends to be lower.  
+
+```{r chunk44}
+plot(ad_train$Area.Income, ad_train$DI.Usage,
+     col="red", xlab="Area.Income", ylab="DI.Usage")
+```
+
+2. The relationship between *Age* and *DI.Usage*, indicating that at an older age, daily internet usage is not high.
+
+```{r chunk44_2}
+plot(ad_train$Age, ad_train$DI.Usage,
+     col="red", xlab="Age", ylab="DI.Usage")
+```
+
+Finally, we observe that in scatter plots involving *Male* and *Clicked.on.Ad*, which are binary variables, the distribution falls into only two distinct groups (0 and 1).
+
+Osservando la relazione tra male e le altre variabili notiamo che non vi Ã¨ una chiara tendenza o relazione tra esse.
+
+
+
+## 1.4. Analysis of the dependency
+
+Dependency analysis is a crucial step useful to comprehend relations between indipendent variables and dependent one (*Clicked.on.Ad*).
+
+```{r}
+N<-nrow(ad_train)
+table(ad_train$Clicked.on.Ad) 
+round(table(ad_train$Clicked.on.Ad)/N*100,2) 
+ggplot(ad_train, aes(x = Clicked.on.Ad)) +
+  geom_bar(fill = "red") +
+  labs(title = "Target distribution", y = "Count")
+```
+
+Our target variable has a 50% probability, with an evenly distributed split between the two classes: 400 observations for class "1" and 400 observations for class "0".
+The balanced distribution of the target variable prevents class imbalance issues. This ensures a less biased model and facilitates the identification of truly informative features.
+ 
+### Analysis of the conditional distributions 
+ 
+The analysis of conditional distributions helps characterize the statistical profiles of the target classes, highlighting differences and patterns between "0" and "1" observations. 
+
+#### <u> Distribution of *Age* and *Clicked.on.AD* </u> 
+
+Consider the plot of the conditional distribution: *Age* conditioning on *Not Clicked=0* and *Clicked=1*.
+
+```{r}
+ggplot(ad_train, aes(x = Age, fill = Clicked.on.Ad)) +
+  geom_histogram(binwidth = 2, position = "fill") +
+  geom_hline(yintercept = 0.5) +
+  labs(y = "proportion", fill = "Clicked on Ad")
+```
+
+The horizontal line in the graph, which refers to the 0.50 value on the Y-axis, indicates the exact point where the proportion of those who clicked and those who did not click is 50%.
+
+We observe that as age increases, there is a higher prevalence of observations corresponding to a click (1). Below the age of 40, more than 50% of users do not click on ads, whereas once they reach 40, the likelihood of clicking increases significantly. This is likely due to younger users being more skeptical of advertisements compared to older users.
+
+```{r}
+
+ggplot(ad_train, aes(x = Age, color = Clicked.on.Ad)) +
+  geom_density(linewidth = 1) +
+  labs(color = "Clicked on Ad")
+```
+
+The curves exhibit different shapes and symmetries, with the orange curve (representing non-clicks) having a long right tail. This suggests that after the age of 40, users are significantly more likely to click on ads.
+The partial but not complete overlap of the curves indicates that age has a notable influence on clicking behavior, though it is not the sole determining factor.
+
+
+#### <u>Distribution of *DT.on.Site* and *Clicked.on.Ad* </u>
+
+We can Analyze the conditional distribution of *Clicked.on.Ad* conditioning on
+*DT.on.Site* using the stacked barplot:
+
+```{r}
+ggplot(ad_train, aes(x = DT.on.Site, fill = Clicked.on.Ad)) +
+  geom_histogram(binwidth = 3, position = "fill") +
+  geom_hline(yintercept = 0.5) +
+  labs(y = "proportion", fill = "Clicked on Ad")
+```
+
+We can observe that as *DT* increases, the probability of not clicking also rises. This suggests that users have a much higher attention threshold for ads during the first 60 seconds after accessing the website.
+
+```{r}
+ ggplot(ad_train_num, aes(DT.on.Site)) + 
+  geom_density(aes(color = factor(Clicked.on.Ad)))+
+  scale_color_discrete(name="Clicked on AD")
+```
+
+Both density curves exhibit tails, although the one associated with non-clicks has a longer left tail compared to the curve for clicks. The limited overlap between the two curves suggests that the variable DT has a strong influence on *Clicked.on.Ad*
+
+```{r}
+t.test(DT.on.Site ~ Clicked.on.Ad, data = ad_train)
+```
+
+Essendo il p-value molto vicino allo zero possiamo rifiutare Hâ‚€. Dunque le medie dei due gruppi, ovvero chi clicca e chi no, sono diverse tra loro, come evidenziato dal test stesso che presenta i valori delle medie stimate nei due gruppi e corrispondenti a 76.65 secondi per coloro che non cliccano, mentre 52.95 per coloro che cliccano. Since the p-value is approssimatamente zero questa differenza Ã¨ altamente significativa. questo insight puÃ² essere utile per delle strategie di marketing.
+
+Since the p-value is extremely low (< 2.2e-16), we can reject Hâ‚€, meaning that the means of the two groups (those who click and those who donâ€™t) are significantly different. The test results confirm this, showing that users who donâ€™t click spend an average of 76.65 seconds on the site, whereas those who do click spend 52.95 seconds.
+This highly significant difference suggests that time spent on site (*DT.on.Site*) plays a crucial role in Ad engagement.
+
+
+####  <u> Distribution of *DI.Usage* and *Clicked.on.Ad* </u>
+
+Consider the cross-analysis between the variables *DI.Usage* and *Clicked.on.Ad.*
+*DI.Usage* is a numerical and continuous variable.
+
+Analyze the conditional distribution of *Clicked.on.Ad* conditioning on
+*DI.Usage* using the stacked barplot.
+
+```{r}
+ggplot(ad_train, aes(x = DI.Usage, fill = Clicked.on.Ad)) +
+  geom_histogram(binwidth = 5, position = "fill") +
+  geom_hline(yintercept = 0.5) +
+  labs(y = "proportion", fill = "Clicked on Ad")
+```
+
+From the graph we can say that there is an inverse relationship between *DI.Usage* and the probability of a user clicking on an ad. We can deduce that users who spend less time on the internet tend to click on ads more, while those who use it more tend to click  less. 
+The variable *DI.Usage* appears to be an important predictive factor for *Click.on.Ad*.
+
+```{r}
+ggplot(ad_train, aes(x = DI.Usage, color = Clicked.on.Ad)) +
+  geom_density(linewidth = 1) +
+  labs(color = "Clicked on Ad")
+```
+
+These graphs show the distribution of DI.Usage for each group (click and non-click), highlighting the differences in their distributions.For users who did not click, the distribution exhibits a slight left skew, with a higher concentration around 210-230.
+For users who clicked, the distribution is concentrated around 120-140 and is right-skewed, with a long tail extending towards higher values.The two graphs complement each other, providing a deeper understanding of the relationship between the two variables.
+
+  
+####  <u> Distribution of *Area.Income* and *Clicked.on.Ad* </u>
+
+Consider the cross-analysis between the variables *Area.Income* and *Clicked.on.Ad*.
+Area.Income is a numerical and continuous variable.
+
+Analyze the conditional distribution of *Clicked.on.Ad* conditioning on
+*Area.Income* using the stacked barplot.
+
+```{r}
+ggplot(ad_train, aes(x = Area.Income, fill = Clicked.on.Ad)) +
+  geom_histogram(binwidth = 2500, position = "fill") +
+  geom_hline(yintercept = 0.5) +
+  labs(y = "proportion", fill = "Clicked on Ad")
+```
+
+From the graph, we can infer that the higher the income of the area, the lower the likelihood that the user will click on the ad, although the percentage of users who do not click on the ad is never 100%. Therefore, we can state that there is a negative correlation between the two variables.
+
+```{r}
+
+ggplot(ad_train, aes(x = Area.Income, color = Clicked.on.Ad)) +
+  geom_density(linewidth = 1) +
+  labs(color = "Clicked on Ad", title = "Area.Income density by class")
+```
+
+The two graphs, when observed separately, allow us to compare the difference in behavior as income increases. In the upper histogram (clicked.on.ad = 0), we can notice a higher concentration shifted towards higher incomes. In the lower histogram (clicked.on.ad = 1), the income distribution appears more uniform, showing a significant presence of people with lower incomes in this group.
+
+#### <u>Distribution of *Country* and *Clicked.on.Ad* </u>
+
+Consider the cross-analysis between the variables *Country* and *Clicked.on.Ad*.
+
+```{r}
+top_20_values <- ad_train %>%
+  count(Country, sort = TRUE) %>%
+  slice_max(order_by = n, n = 20)
+
+ad_train_subset <- ad_train %>%
+  filter(Country %in% top_20_values$Country)
+```
+
+After conducting this analysis with the entire dataset, we chose to extract a subset (which includes only the top 20 countries) so that the data would be more analyzable and manageable.
+
+```{r}
+prop.table(table(ad_train_subset$Clicked.on.Ad, ad_train_subset$Country), 2) * 100
+
+ggplot(ad_train_subset, aes(x = Country, fill = Clicked.on.Ad)) +
+  geom_bar(position = "fill") +
+  geom_hline(yintercept = 0.5) +
+  labs(y = "Proportion", fill = "Clicked on Ad",
+       title = "Clicked.on.Ad proportion by Country (Top 20)") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+In the stacked barplot of countries with the highest frequencies in clicked.on.ad, we notice that 65% are characterized by a proportion that favors clicking, indicating that in these countries there is a higher likelihood of clicking. Then, 15% are equal. Therefore, there is a greater tendency to click rather than not click.
+
+
+## 2. Model Selection
+
+### 2.1. Feature Selection and Resampling Strategy
+
+Based on the Exploratory Data Analysis (EDA) conducted in the previous section, we identified that continuous variables such as `DT.on.Site`, `DI.Usage`, `Age`, and `Area.Income` exhibit strong relationships with the target variable `Clicked.on.Ad`. We will use these variables as our primary predictors. We will also include `Male` to evaluate if gender provides any marginal predictive power when combined with the other features. Variables with high cardinality or complex structures like `City`, `Country`, and `Timestamp` are excluded from these baseline models to maintain interpretability and prevent overfitting.
+
+To rigorously evaluate our models and estimate their performance on unseen data, we apply a **10-Fold Cross-Validation** strategy. This technique splits the training data into 10 equal parts, training the model on 9 parts and validating it on the remaining 1, repeating this process 10 times to compute an average robust metric.
+
+```{r chunk_model_setup}
+# Load necessary libraries for modeling
+library(caret)
+library(MASS)
+library(rpart)
+library(rpart.plot)
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Define the training control (10-fold Cross-Validation)
+train_control <- trainControl(method = "cv", number = 10)
+
+# Define the formula to be used across all models
+model_formula <- Clicked.on.Ad ~ DT.on.Site + Age + Area.Income + DI.Usage + Male
+```

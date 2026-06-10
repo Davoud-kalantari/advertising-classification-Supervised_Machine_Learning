@@ -1,0 +1,238 @@
+---
+title: "StatLearning 2024/25"
+output: html_document
+---
+
+# Lab activity 4: Resampling Methods
+
+
+##  4.1. Warming up: sampling with and without replacement  
+
+Consider a simple dataset of numbers from 1 to 30:
+
+```{r chunk1}
+n=30
+X=seq(from=1, to=n, by=1)
+X
+```
+
+We begin by using the
+`sample()` function to draw a sample containing a prortion $\alpha=60\%$ of units of $X$; see `?sample` for details. The option *replace* means with replacement (*replace=T*)
+or without replacement (*replace=F*). By default, in the `sample()` function samples without replacement (*replace=F*). When we set  *replace=T*, some values appear more than once. 
+
+```{r chunk2}
+alpha=0.6
+sample(X, alpha*n, replace=T) # sampling with replacement
+sample(X, alpha*n, replace=T) 
+sample(X, alpha*n, replace=T) 
+sample(X, alpha*n, replace=F) # sampling without replacement
+sample(X, alpha*n, replace=F)
+sample(X, alpha*n, replace=F)
+sample(X, alpha*n, replace=F)
+```
+
+We remark that each time we run the `sample()` function we get a different subset. 
+
+We use the `set.seed()` function in order to set a  for `R`'s random number generator. It is generally a good idea to set a random seed so that the results obtained can be reproduced precisely at a later time.
+
+```{r chunk3}
+set.seed(1500)
+sample(X, alpha*n, replace=TRUE) 
+set.seed(1500)
+sample(X, alpha*n, replace=TRUE) 
+set.seed(1500)
+sample(X, alpha*n, replace=F)
+set.seed(1500)
+sample(X, alpha*n, replace=F)
+```
+
+## 4.2. Selection of the training, validation and test sets
+
+Consider the `Default`data in the `ISLR2` package concerning a a data frame with 10000 observations on the following 4 variables:
+
+*default*: A factor with levels No and Yes indicating whether the customer defaulted on their debt </br>
+*student*: A factor with levels No and Yes indicating whether the customer is a student </br>
+*balance*: The average balance that the customer has remaining on their credit card after making their monthly payment </br>
+*income*:  Income of customer </br>
+
+
+```{r chunk4}
+library(ISLR2)
+attach(Default)
+N<-nrow(Default)
+str(Default)
+```
+
+Let's explore the dataset with respect to the target variable *default*:
+```{r chunk5}
+table(Default$default)
+table(Default$default)/N*100 
+```
+
+And afterwards we split the data into two subsets - the learning set and the test set - containing 60% and 40% of units, respectively, using the function `sample()`
+
+```{r chunk6}
+totIndex=seq(from=1,to=N,by=1)
+length(totIndex)
+alpha=0.6
+set.seed(100)
+trainIndex=sample(totIndex,alpha*N, replace=F )
+Default_L<-Default[trainIndex,] # Learning set
+nL=nrow(Default_L)
+Default_T<-Default[-trainIndex,] # Test set
+nT=nrow(Default_T)
+```
+
+Now check the proportions of defaulters and non-defaulters in the two subsets and compare with the corresponding proportions in the complete dataset:
+
+```{r chunk7}
+table(Default$default)/N*100
+table(Default_L$default)/nL*100
+table(Default_T$default)/nT*100 
+```
+
+Consider another sample
+```{r}
+totIndex=seq(from=1,to=N,by=1)
+length(totIndex)
+alpha=0.6
+set.seed(200)
+trainIndex=sample(totIndex,alpha*N, replace=F )
+Default_L<-Default[trainIndex,] # Learning set
+nL=nrow(Default_L)
+Default_T<-Default[-trainIndex,] # Test set
+nT=nrow(Default_T)
+table(Default$default)/N*100
+table(Default_L$default)/nL*100
+table(Default_T$default)/nT*100 
+```
+Even if these differences are small, using the `sample()` function we don't have any guarantee that the proportions of the values of the target variables will be maintained in either subset. 
+
+We fix this drawback, using the `caret: Classification And REgression Training` package, see http://topepo.github.io/caret/data-splitting.html for details. In particular, we need the function *createDataPartition()*.
+
+```{r chunk8}
+library(caret)
+set.seed(2000)
+alpha_L= 0.6
+trainIndex <- createDataPartition(Default$default, p = alpha_L, 
+                                  list = FALSE, 
+                                  times = 1)
+Default_L<-Default[trainIndex,]  # Learning set
+nL<-nrow(Default_L)
+table(Default_L$default)
+table(Default_L$default)/nL*100
+```
+
+The remaining units are obtained using  the `-trainIndex`  below selects  only the observations that are not in the learning  set.
+
+```{r chunk9}
+Default_VT<-Default[-trainIndex,]
+nVT<-nrow(Default_VT)
+table(Default_VT$default)
+table(Default_VT$default)/nVT*100 
+```
+
+Afterwards we can split the remaining units into two further subsets,  the validation set and the test set having the same size (proportion=0.2):
+
+```{r chunk10}
+alpha_V=0.2 # the proportion of units in the validation set 
+validIndex <- createDataPartition(Default_VT$default, p = alpha_V/(1-alpha_L), 
+                                  list = FALSE, 
+                                  times = 1)
+
+Default_V<-Default_VT[validIndex,]     # Validation set
+Default_T<-Default_VT[-validIndex,]    # Test set
+
+nV<-dim(Default_V)[1]
+nT<-dim(Default_T)[1]
+table(Default_V$default)
+table(Default_V$default)/nV*100
+table(Default_T$default)
+table(Default_T$default)/nT*100
+```
+
+And we can easily check that the proportions of defaulters and non-defaulters are the approximately the same in the three subsets (learning, validation and test set).
+
+## 4.3. The Validation Set Approach
+
+We explore the use of the validation set approach in order to estimate the test error rates that result from fitting various linear models on the `Auto` data set, consisting of data frame with 392 observations on the following 9 variables:
+
+*mpg*:  miles per gallon </br>
+*cylinders*: Number of cylinders between 4 and 8 </br>
+*displacement*: Engine displacement (cu. inches) </br>
+*horsepower*: Engine horsepower </br>
+*weight*: Vehicle weight (lbs.) </br>
+*acceleration*: Time to accelerate from 0 to 60 mph (sec.) </br>
+*year*: Model year (modulo 100) </br>
+*origin*: Origin of car (1. American, 2. European, 3. Japanese) </br>
+*name*: Vehicle name </br>
+
+
+Select a sample of size 196 from the dataset:
+
+```{r chunk11}
+library(ISLR2)
+attach(Auto)
+set.seed(1)
+train <- sample(392, 196)
+```
+
+We then use the `subset` option in `lm()` to fit a linear regression using only the observations corresponding to the training set.
+
+```{r chunk12}
+lm.fit <- lm(mpg ~ horsepower, data = Auto, subset = train)
+```
+
+We now  use
+ the `predict()` function to estimate the response for all $392$ observations,  and
+ we  use
+  the `mean()` function to calculate the MSE of the $196$ observations in the validation set. Note that the `-train` index below selects  only the observations that are not in the training set.
+
+```{r chunk13}
+attach(Auto)
+mx1=mean((mpg - predict(lm.fit, Auto))[-train]^2)
+mx1
+```
+
+Therefore, the estimated test MSE for the linear regression fit is `r round(mx1,3)`. We can use polynomial regression where the relationship between the predictors and the response is of kind
+\[ y_i = \beta_0 + \beta_1 x_i + \beta_2 x_i^2 + \beta_3 x_i^3 + \cdots + \beta_d x_i^d + \varepsilon_i \]
+see the textbook Sec. 7.1 for details.
+
+In `R` polynomial regression is implemented through the  the `poly()` function and estimate the test error for the quadratic and cubic regressions.
+
+```{r chunk14}
+lm.fit2 <- lm(mpg ~ poly(horsepower, 2), data = Auto, 
+    subset = train)
+mx2=mean((mpg - predict(lm.fit2, Auto))[-train]^2)
+mx2
+lm.fit3 <- lm(mpg ~ poly(horsepower, 3), data = Auto, 
+    subset = train)
+mx3=mean((mpg - predict(lm.fit3, Auto))[-train]^2)
+mx3
+```
+
+These error rates are `r round(mx2,3)` and `r round(mx3,3)`, respectively (quite smaller than than the provios value). 
+If we choose a different training set instead, then we will obtain somewhat different errors on the validation set.
+
+
+```{r chunk15}
+set.seed(2)
+train <- sample(392, 196)
+lm.fit <- lm(mpg ~ horsepower, subset = train)
+mx1b=mean((mpg - predict(lm.fit, Auto))[-train]^2)
+mx1b
+lm.fit2 <- lm(mpg ~ poly(horsepower, 2), data = Auto, 
+    subset = train)
+mx2b=mean((mpg - predict(lm.fit2, Auto))[-train]^2)
+mx2b
+lm.fit3 <- lm(mpg ~ poly(horsepower, 3), data = Auto, 
+    subset = train)
+mx3b=mean((mpg - predict(lm.fit3, Auto))[-train]^2)
+mx3b
+```
+
+Using this split of the observations into a training set and a validation set,
+we find that the validation set error rates for the models with linear, quadratic, and cubic terms are `r round(mx1b,3)`, `r round(mx2b,3)`, and `r round(mx3b,3)`, respectively.
+
+**Remark.** These results are consistent with our previous findings: a model that predicts `mpg` using a quadratic function of `horsepower` performs better than a model that involves only a linear function of `horsepower`, and there is little evidence in favor of a model that uses a cubic function of `horsepower`.
+

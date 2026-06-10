@@ -1,0 +1,792 @@
+---
+title: "Supervised Learning Report"
+author: "Gaudio Carmelo Garozzo- Mattia Campagna- Davoud Davide Kalantari"
+date: "2025-03-26"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+```{r setup,include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+set.seed(123)
+
+library(dplyr)
+library(ggplot2)
+library(visdat)
+library(skimr)
+library(corrplot)
+library(lubridate)
+library(here)
+```
+
+## 1.1. Basic data visualization
+
+```{r chunk2}
+ad_train <- read.csv(here::here("data", "advertising_train.csv"))
+
+# rename (as you did)
+colnames(ad_train)[colnames(ad_train) %in% c("Daily.Time.Spent.on.Site", "Daily.Internet.Usage")] <-
+  c("DT.on.Site", "DI.Usage")
+
+# drop index column
+ad_train <- ad_train %>% select(-X)
+
+# parse timestamp
+ad_train <- ad_train %>%
+  mutate(
+    Timestamp = ymd_hms(Timestamp),
+    Male = factor(Male, levels = c(0,1), labels = c("Female","Male")),
+    Clicked.on.Ad = factor(Clicked.on.Ad, levels = c(0,1), labels = c("No","Yes"))
+  )
+
+str(ad_train)
+```
+
+Where the variables are defined as follows:
+
+X: Variable used as an index
+DT.on.Site: Indicates the number of minutes a user spends on the website each day.s
+Age: Age of the user visiting the website.
+Area.Income: Income of the area where the user is located.
+DI.Usage: Indicates how many minutes per day a user spends on the Internet in general, not just on the specific website.
+Ad.Topic.Line: The content of the advertisement.
+City: City of the user.
+Male: Binary variable that indicates 1 if the user is male, 0 if the user is female.
+Country: Country of the user.
+Timestamp: Indicates when a user viewed the advertisement, including the exact date and time.
+Clicked.on.Ad: Binary variable that indicates 1 if the user clicked on the advertisement, 0 otherwise.
+
+```{r chunk3}
+head(ad_train)
+```
+
+```{r chunk4}
+vis_dat(ad_train)
+```
+
+```{r chunk5}
+vis_miss(ad_train)
+```
+
+We observe that there are no missing values.
+
+```{r}
+skim(ad_train)
+```
+
+The skim function provides us with valuable insights. Our categorical variables have a high number of unique values. Most numerical variables, except *Male* and *Clicked on Ad*, exhibit moderate dispersion, as their standard deviation is neither too large nor too small compared to the mean. In contrast, *Male* and *Clicked on Ad* have a standard deviation close to their mean because they are binary variables, taking only the values 0 or 1.
+
+```{r chunk43}
+ad_train_num <- ad_train %>% 
+  select(DT.on.Site, Age, Area.Income, DI.Usage, Male, Clicked.on.Ad)
+s<-apply(ad_train_num,2,sd) 
+mx<-apply(ad_train_num,2,mean)
+cv<-s/mx
+
+df_cv <- data.frame(
+  Standard_Deviation = s,
+  Mean = mx,
+  Coefficient_of_Variation = cv
+)
+
+print(df_cv, digits = 3)
+```
+
+To confirm the above, we observe that the coefficients of variation reflect the previous observations.
+
+## 1.2. Analysis of univariate statistics
+
+We previously selected the numerical variables and assigned them to a dataframe to be used for this type of analysis, excluding the index variable as it has no statistical relevance.
+
+```{r chunk21}
+head(ad_train_num)
+```
+
+```{r chunk22, include = FALSE}
+ad_train_cont <- ad_train %>%
+dplyr::select(DT.on.Site, Age, Area.Income, DI.Usage)
+
+```
+
+```{r}
+R <- cor(ad_train_cont)
+R
+```
+
+The correlation matrix is computed only on continuous predictors to avoid misleading interpretations involving binary variables. 
+
+```{r chunk32}
+
+corrplot.mixed(R, upper="ellipse", tl.cex=0.7, tl.col='black') 
+```
+
+The analysis of the correlation matrix reveals some interesting insights into user behavior regarding ad clicks. 
+In particular, there is a strong negative relationship between the time spent on the website (DT.on.Site) and the number of ad clicks (Clicked.on.Ad), as well as between total Internet usage (DI.Usage) and the likelihood of interacting with ads. This suggests that users who are more familiar with the web or who spend a significant amount of time online may be less likely to click on ads, possibly because they are more accustomed to recognizing and ignoring them. 
+Another relevant aspect concerns user age: the positive correlation between Age and Clicked.on.Ad indicates that older users tend to click on ads more frequently than younger ones. 
+Conversely, the income level of the area users come from (Area.Income) shows a negative correlation with the number of clicks, suggesting that users from wealthier areas may be less interested in online advertisements.  
+Finally, gender (Male) does not seem to play a significant role in ad interaction dynamics, as its correlation with Clicked.on.Ad is very weak. This indicates that, at least within the analyzed dataset, the likelihood of clicking on an ad does not significantly depend on whether the user is male or female.
+
+
+
+
+## 1.3. Additional graphical and numerical summaries 
+
+Having observed that the variables correlated with our target variable are *DT on Site*, *Age*, *Area Income*, and *DI Usage*, we proceed with a further graphical visualization of their distributions.
+
+```{r chunk41}
+ggplot(ad_train, aes(x = DT.on.Site)) +
+  geom_histogram(bins = 30, fill = "lightblue", color = "black") +
+  labs(x = "Daily Time Spent on Site", title = "Histogram of DT.on.Site")
+```
+
+The histogram shows the distribution with values ranging from approximately 35 to 90. The distribution is uneven, with a main mode between 75 and 85 and secondary peaks, indicating different user engagement patterns. The slight asymmetry suggests that most users spend a relatively long time on the site. 
+
+```{r chunk41_2}
+ggplot(ad_train, aes(x = Age)) +
+  geom_histogram(bins = 25, fill = "lightblue", color = "black") +
+  labs(x = "Age", title = "Histogram of Age")
+```
+
+The distribution shows a main mode between 30 and 35 years, indicating that most users fall within this age range. Additionally, the data distribution has a slight positive skew, meaning that most of the data is concentrated around the mean, with a tail extending towards higher ages.
+
+```{r chunk41_3}
+ggplot(ad_train, aes(x = Area.Income)) +
+  geom_histogram(bins = 30, fill = "lightblue", color = "black") +
+  labs(x = "Area Income", title = "Histogram of Area.Income")
+```
+
+The histogram of Area.Income shows a distribution characterized by positive skewness, leading us to conclude that the majority of users live in areas where the average income is not lower than 50,000. However, we notice a decline starting from around 70,000, which is due to the fact that there are far fewer areas with such a high average income.
+
+```{r chunk41_4}
+ggplot(ad_train, aes(x = DI.Usage)) +
+  geom_histogram(bins = 30, fill = "lightblue", color = "black") +
+  labs(x = "Daily Internet Usage", title = "Histogram of DI.Usage")
+```
+
+The histogram shows the distribution of daily Internet use, concentrated between 100 and 250 minutes, with a peak around 220/230 minutes. The distribution is approximately symmetrical, indicating a relatively even usage with no obvious extreme values.
+
+```{r chunk41_5}
+ggplot(ad_train, aes(x = Clicked.on.Ad)) +
+  geom_bar(fill = "lightblue", color = "black") +
+  labs(x = "Clicked on Ad", y = "Count", title = "Target distribution")
+```
+
+The data distribution is uniform, meaning it is perfectly symmetrical.
+
+
+```{r chunk42}
+boxplot(ad_train_num$Area.Income, col="lightblue", las=1, cex.axis=0.8)
+```
+The only boxplot that makes sense to display is *Area.Income*, as it is the only one with outliers. Additionally, a simultaneous representation of all numerical variables would lead to a distorted visualization because *Area.Income* has a larger order of magnitude compared to the other variables.
+
+```{r}
+boxplot.stats(ad_train_num$Area.Income)$out
+```
+ 
+### Some cross-analyses
+
+Now we analyze the dependency between pairs of variables using a matrix scatter plot, which allows us to simultaneously observe all relationships between the variables.
+
+```{r chunk45}
+# Scatterplot matrix only for continuous predictors
+pairs(ad_train_cont, pch = 20, cex = 0.35, col = "blue")
+```
+
+The analysis of dependencies allows us to infer that there are no strong relationships between any particular pair of variables, as the distribution of points in all individual scatter plots appears rather scattered without a clear pattern. 
+
+However, we want to highlight two specific cases:  
+1. The relationship between *Area.Income* and *DI.Usage*, which suggests that in areas with lower income, internet usage tends to be lower.  
+
+```{r chunk44}
+plot(ad_train$Area.Income, ad_train$DI.Usage,
+     col="red", xlab="Area.Income", ylab="DI.Usage")
+```
+
+2. The relationship between *Age* and *DI.Usage*, indicating that at an older age, daily internet usage is not high.
+
+```{r chunk44_2}
+plot(ad_train$Age, ad_train$DI.Usage,
+     col="red", xlab="Age", ylab="DI.Usage")
+```
+
+Finally, we observe that in scatter plots involving *Male* and *Clicked.on.Ad*, which are binary variables, the distribution falls into only two distinct groups (0 and 1).
+
+Osservando la relazione tra male e le altre variabili notiamo che non vi Ã¨ una chiara tendenza o relazione tra esse.
+
+
+
+## 1.4. Analysis of the dependency
+
+Dependency analysis is a crucial step useful to comprehend relations between indipendent variables and dependent one (*Clicked.on.Ad*).
+
+```{r}
+N<-nrow(ad_train)
+table(ad_train$Clicked.on.Ad) 
+round(table(ad_train$Clicked.on.Ad)/N*100,2) 
+ggplot(ad_train, aes(x = Clicked.on.Ad)) +
+  geom_bar(fill = "red") +
+  labs(title = "Target distribution", y = "Count")
+```
+
+Our target variable has a 50% probability, with an evenly distributed split between the two classes: 400 observations for class "1" and 400 observations for class "0".
+The balanced distribution of the target variable prevents class imbalance issues. This ensures a less biased model and facilitates the identification of truly informative features.
+ 
+### Analysis of the conditional distributions 
+ 
+The analysis of conditional distributions helps characterize the statistical profiles of the target classes, highlighting differences and patterns between "0" and "1" observations. 
+
+#### <u> Distribution of *Age* and *Clicked.on.AD* </u> 
+
+Consider the plot of the conditional distribution: *Age* conditioning on *Not Clicked=0* and *Clicked=1*.
+
+```{r}
+ggplot(ad_train, aes(x = Age, fill = Clicked.on.Ad)) +
+  geom_histogram(binwidth = 2, position = "fill") +
+  geom_hline(yintercept = 0.5) +
+  labs(y = "proportion", fill = "Clicked on Ad")
+```
+
+The horizontal line in the graph, which refers to the 0.50 value on the Y-axis, indicates the exact point where the proportion of those who clicked and those who did not click is 50%.
+
+We observe that as age increases, there is a higher prevalence of observations corresponding to a click (1). Below the age of 40, more than 50% of users do not click on ads, whereas once they reach 40, the likelihood of clicking increases significantly. This is likely due to younger users being more skeptical of advertisements compared to older users.
+
+```{r}
+
+ggplot(ad_train, aes(x = Age, color = Clicked.on.Ad)) +
+  geom_density(linewidth = 1) +
+  labs(color = "Clicked on Ad")
+```
+
+The curves exhibit different shapes and symmetries, with the orange curve (representing non-clicks) having a long right tail. This suggests that after the age of 40, users are significantly more likely to click on ads.
+The partial but not complete overlap of the curves indicates that age has a notable influence on clicking behavior, though it is not the sole determining factor.
+
+
+#### <u>Distribution of *DT.on.Site* and *Clicked.on.Ad* </u>
+
+We can Analyze the conditional distribution of *Clicked.on.Ad* conditioning on
+*DT.on.Site* using the stacked barplot:
+
+```{r}
+ggplot(ad_train, aes(x = DT.on.Site, fill = Clicked.on.Ad)) +
+  geom_histogram(binwidth = 3, position = "fill") +
+  geom_hline(yintercept = 0.5) +
+  labs(y = "proportion", fill = "Clicked on Ad")
+```
+
+We can observe that as *DT* increases, the probability of not clicking also rises. This suggests that users have a much higher attention threshold for ads during the first 60 seconds after accessing the website.
+
+```{r}
+ ggplot(ad_train_num, aes(DT.on.Site)) + 
+  geom_density(aes(color = factor(Clicked.on.Ad)))+
+  scale_color_discrete(name="Clicked on AD")
+```
+
+Both density curves exhibit tails, although the one associated with non-clicks has a longer left tail compared to the curve for clicks. The limited overlap between the two curves suggests that the variable DT has a strong influence on *Clicked.on.Ad*
+
+```{r}
+t.test(DT.on.Site ~ Clicked.on.Ad, data = ad_train)
+```
+
+Essendo il p-value molto vicino allo zero possiamo rifiutare Hâ‚€. Dunque le medie dei due gruppi, ovvero chi clicca e chi no, sono diverse tra loro, come evidenziato dal test stesso che presenta i valori delle medie stimate nei due gruppi e corrispondenti a 76.65 secondi per coloro che non cliccano, mentre 52.95 per coloro che cliccano. Since the p-value is approssimatamente zero questa differenza Ã¨ altamente significativa. questo insight puÃ² essere utile per delle strategie di marketing.
+
+Since the p-value is extremely low (< 2.2e-16), we can reject Hâ‚€, meaning that the means of the two groups (those who click and those who donâ€™t) are significantly different. The test results confirm this, showing that users who donâ€™t click spend an average of 76.65 seconds on the site, whereas those who do click spend 52.95 seconds.
+This highly significant difference suggests that time spent on site (*DT.on.Site*) plays a crucial role in Ad engagement.
+
+
+####  <u> Distribution of *DI.Usage* and *Clicked.on.Ad* </u>
+
+Consider the cross-analysis between the variables *DI.Usage* and *Clicked.on.Ad.*
+*DI.Usage* is a numerical and continuous variable.
+
+Analyze the conditional distribution of *Clicked.on.Ad* conditioning on
+*DI.Usage* using the stacked barplot.
+
+```{r}
+ggplot(ad_train, aes(x = DI.Usage, fill = Clicked.on.Ad)) +
+  geom_histogram(binwidth = 5, position = "fill") +
+  geom_hline(yintercept = 0.5) +
+  labs(y = "proportion", fill = "Clicked on Ad")
+```
+
+From the graph we can say that there is an inverse relationship between *DI.Usage* and the probability of a user clicking on an ad. We can deduce that users who spend less time on the internet tend to click on ads more, while those who use it more tend to click  less. 
+The variable *DI.Usage* appears to be an important predictive factor for *Click.on.Ad*.
+
+```{r}
+ggplot(ad_train, aes(x = DI.Usage, color = Clicked.on.Ad)) +
+  geom_density(linewidth = 1) +
+  labs(color = "Clicked on Ad")
+```
+
+These graphs show the distribution of DI.Usage for each group (click and non-click), highlighting the differences in their distributions.For users who did not click, the distribution exhibits a slight left skew, with a higher concentration around 210-230.
+For users who clicked, the distribution is concentrated around 120-140 and is right-skewed, with a long tail extending towards higher values.The two graphs complement each other, providing a deeper understanding of the relationship between the two variables.
+
+  
+####  <u> Distribution of *Area.Income* and *Clicked.on.Ad* </u>
+
+Consider the cross-analysis between the variables *Area.Income* and *Clicked.on.Ad*.
+Area.Income is a numerical and continuous variable.
+
+Analyze the conditional distribution of *Clicked.on.Ad* conditioning on
+*Area.Income* using the stacked barplot.
+
+```{r}
+ggplot(ad_train, aes(x = Area.Income, fill = Clicked.on.Ad)) +
+  geom_histogram(binwidth = 2500, position = "fill") +
+  geom_hline(yintercept = 0.5) +
+  labs(y = "proportion", fill = "Clicked on Ad")
+```
+
+From the graph, we can infer that the higher the income of the area, the lower the likelihood that the user will click on the ad, although the percentage of users who do not click on the ad is never 100%. Therefore, we can state that there is a negative correlation between the two variables.
+
+```{r}
+
+ggplot(ad_train, aes(x = Area.Income, color = Clicked.on.Ad)) +
+  geom_density(linewidth = 1) +
+  labs(color = "Clicked on Ad", title = "Area.Income density by class")
+```
+
+The two graphs, when observed separately, allow us to compare the difference in behavior as income increases. In the upper histogram (clicked.on.ad = 0), we can notice a higher concentration shifted towards higher incomes. In the lower histogram (clicked.on.ad = 1), the income distribution appears more uniform, showing a significant presence of people with lower incomes in this group.
+
+#### <u>Distribution of *Country* and *Clicked.on.Ad* </u>
+
+Consider the cross-analysis between the variables *Country* and *Clicked.on.Ad*.
+
+```{r}
+top_20_values <- ad_train %>%
+  count(Country, sort = TRUE) %>%
+  slice_max(order_by = n, n = 20)
+
+ad_train_subset <- ad_train %>%
+  filter(Country %in% top_20_values$Country)
+```
+
+After conducting this analysis with the entire dataset, we chose to extract a subset (which includes only the top 20 countries) so that the data would be more analyzable and manageable.
+
+```{r}
+prop.table(table(ad_train_subset$Clicked.on.Ad, ad_train_subset$Country), 2) * 100
+
+ggplot(ad_train_subset, aes(x = Country, fill = Clicked.on.Ad)) +
+  geom_bar(position = "fill") +
+  geom_hline(yintercept = 0.5) +
+  labs(y = "Proportion", fill = "Clicked on Ad",
+       title = "Clicked.on.Ad proportion by Country (Top 20)") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+In the stacked barplot of countries with the highest frequencies in clicked.on.ad, we notice that 65% are characterized by a proportion that favors clicking, indicating that in these countries there is a higher likelihood of clicking. Then, 15% are equal. Therefore, there is a greater tendency to click rather than not click.
+
+
+## 2. Model Selection
+
+### 2.1. Feature Selection and Resampling Strategy
+
+In order to complete the second step of the assignment, we focus exclusively on the training data and compare a set of classification methods that are coherent with the course labs. In particular, we consider Logistic Regression, Linear Discriminant Analysis (LDA), Quadratic Discriminant Analysis (QDA), and Classification Trees with pruning. As an additional extension, we also evaluate Bagging, Random Forest, and Boosting whenever the corresponding packages are available in the current `R` environment.
+
+For a fair comparison, we use the same core predictors in all directly comparable models:
+
+- `DT.on.Site`
+- `Age`
+- `Area.Income`
+- `DI.Usage`
+- `Male`
+
+These variables were already identified in the EDA as the most informative and manageable predictors. We deliberately exclude variables such as `Ad.Topic.Line`, `City`, and `Country`, because they have high cardinality and would considerably increase model complexity without a strong methodological justification in the style of the course labs.
+
+To estimate predictive performance on unseen data while using only the training set, we adopt a **stratified 10-fold cross-validation** strategy. The same folds are used for all models in order to make the comparison as homogeneous as possible. The final choice is based primarily on cross-validated accuracy, misclassification error, and confusion matrices computed from out-of-fold predictions. The ROC curve and AUC are considered only as secondary diagnostics.
+
+```{r chunk_model_setup}
+library(caret)
+library(MASS)
+library(tree)
+
+set.seed(123)
+
+# Prepare the modeling data using the cleaned training set from Step 1
+ad_model <- ad_train %>%
+  dplyr::select(DT.on.Site, Age, Area.Income, DI.Usage, Male, Clicked.on.Ad) %>%
+  dplyr::mutate(
+    Male = factor(Male, levels = c("Female", "Male")),
+    Clicked.on.Ad = factor(Clicked.on.Ad, levels = c("No", "Yes"))
+  ) %>%
+  na.omit()
+model_formula <- Clicked.on.Ad ~ DT.on.Site + Age + Area.Income + DI.Usage + Male
+predictor_names <- c("DT.on.Site", "Age", "Area.Income", "DI.Usage", "Male")
+
+# Stratified folds for all models
+folds <- createFolds(ad_model$Clicked.on.Ad, k = 10, returnTrain = FALSE)
+
+table(ad_model$Clicked.on.Ad)
+
+safe_auc <- function(prob_yes, truth) {
+  if (!requireNamespace("ROCR", quietly = TRUE)) {
+    return(NA_real_)
+  }
+  pred_obj <- ROCR::prediction(prob_yes, truth)
+  auc_obj <- ROCR::performance(pred_obj, measure = "auc")
+  as.numeric(auc_obj@y.values[[1]])
+}
+
+cv_classification <- function(data, folds, fit_fun, predict_fun) {
+  n <- nrow(data)
+  truth <- factor(data$Clicked.on.Ad, levels = levels(data$Clicked.on.Ad))
+  pred_class <- factor(rep(NA_character_, n), levels = levels(truth))
+  pred_prob <- rep(NA_real_, n)
+
+  for (i in seq_along(folds)) {
+    idx_valid <- folds[[i]]
+    train_dat <- data[-idx_valid, ]
+    valid_dat <- data[idx_valid, ]
+
+    fit_obj <- fit_fun(train_dat)
+    pred_obj <- predict_fun(fit_obj, valid_dat)
+
+    pred_class[idx_valid] <- factor(as.character(pred_obj$class),
+                                    levels = levels(truth))
+    pred_prob[idx_valid] <- pred_obj$prob
+  }
+
+  conf_mat <- addmargins(table(
+    Predicted = factor(pred_class, levels = levels(truth)),
+    Observed = truth
+  ))
+
+  accuracy <- sum(diag(conf_mat[1:2, 1:2])) / n * 100
+  error_rate <- 100 - accuracy
+  auc_value <- if (all(!is.na(pred_prob))) safe_auc(pred_prob, truth) else NA_real_
+
+  list(
+    pred_class = pred_class,
+    pred_prob = pred_prob,
+    conf_mat = conf_mat,
+    metrics = data.frame(
+      Accuracy = accuracy,
+      Misclassification.Error = error_rate,
+      AUC = auc_value
+    )
+  )
+}
+
+make_metric_row <- function(model_name, cv_object) {
+  data.frame(
+    Model = model_name,
+    Accuracy = cv_object$metrics$Accuracy,
+    Misclassification.Error = cv_object$metrics$Misclassification.Error,
+    AUC = cv_object$metrics$AUC
+  )
+}
+
+choose_best_index <- function(tbl) {
+  auc_rank <- ifelse(is.na(tbl$AUC), -Inf, tbl$AUC)
+  order(-tbl$Accuracy, tbl$Misclassification.Error, -auc_rank)[1]
+}
+
+glm_fit_fun <- function(train_dat) {
+  glm(model_formula, family = binomial, data = train_dat)
+}
+
+glm_predict_fun <- function(model, newdata) {
+  prob_yes <- as.numeric(predict(model, newdata = newdata, type = "response"))
+  pred_class <- ifelse(prob_yes > 0.5, "Yes", "No")
+  list(
+    class = factor(pred_class, levels = levels(ad_model$Clicked.on.Ad)),
+    prob = prob_yes
+  )
+}
+
+lda_fit_fun <- function(train_dat) {
+  MASS::lda(model_formula, data = train_dat)
+}
+
+lda_predict_fun <- function(model, newdata) {
+  pred <- predict(model, newdata = newdata)
+  list(
+    class = factor(as.character(pred$class), levels = levels(ad_model$Clicked.on.Ad)),
+    prob = pred$posterior[, "Yes"]
+  )
+}
+
+qda_fit_fun <- function(train_dat) {
+  MASS::qda(model_formula, data = train_dat)
+}
+
+qda_predict_fun <- function(model, newdata) {
+  pred <- predict(model, newdata = newdata)
+  list(
+    class = factor(as.character(pred$class), levels = levels(ad_model$Clicked.on.Ad)),
+    prob = pred$posterior[, "Yes"]
+  )
+}
+
+tree_fit_fun <- function(train_dat) {
+  assign(".tree_train_dat_tmp", train_dat, envir = .GlobalEnv)
+  on.exit(rm(".tree_train_dat_tmp", envir = .GlobalEnv), add = TRUE)
+
+  full_tree <- tree::tree(model_formula, data = .tree_train_dat_tmp)
+  cv_tree_fit <- tree::cv.tree(full_tree, FUN = prune.misclass)
+  best_size <- cv_tree_fit$size[which.min(cv_tree_fit$dev)]
+  pruned_tree <- prune.misclass(full_tree, best = best_size)
+
+  list(
+    full_tree = full_tree,
+    cv_tree = cv_tree_fit,
+    best_size = best_size,
+    pruned_tree = pruned_tree
+  )
+}
+
+tree_predict_fun <- function(model, newdata) {
+  prob_mat <- predict(model$pruned_tree, newdata = newdata)
+  prob_yes <- if (is.matrix(prob_mat)) prob_mat[, "Yes"] else as.numeric(prob_mat)
+  pred_class <- predict(model$pruned_tree, newdata = newdata, type = "class")
+  list(
+    class = factor(as.character(pred_class), levels = levels(ad_model$Clicked.on.Ad)),
+    prob = prob_yes
+  )
+}
+
+# Cross-validated results for the core models
+cv_glm <- cv_classification(ad_model, folds, glm_fit_fun, glm_predict_fun)
+cv_lda <- cv_classification(ad_model, folds, lda_fit_fun, lda_predict_fun)
+cv_qda <- cv_classification(ad_model, folds, qda_fit_fun, qda_predict_fun)
+cv_tree <- cv_classification(ad_model, folds, tree_fit_fun, tree_predict_fun)
+
+# Fit the models on the full training data for interpretation
+glm_full <- glm_fit_fun(ad_model)
+lda_full <- lda_fit_fun(ad_model)
+qda_full <- qda_fit_fun(ad_model)
+tree_full <- tree_fit_fun(ad_model)
+
+# Containers for optional tree-based methods
+optional_results <- list()
+optional_rows <- list()
+```
+
+### 2.2. Logistic Regression
+
+We start with Logistic Regression, which is the reference linear classifier used extensively in the course labs. The model estimates the probability of a click as a function of the selected predictors, and the final classification is obtained by assigning class `"Yes"` when the estimated probability exceeds `0.5`.
+
+```{r chunk_glm_results}
+summary(glm_full, digits = 3)
+cv_glm$conf_mat
+cv_glm$metrics
+```
+
+The confusion matrix above is obtained by collecting the out-of-fold predictions from the 10 validation folds. In this way, each training observation is classified by a model that has not been fitted on that observation.
+
+### 2.3. Linear Discriminant Analysis
+
+We now consider Linear Discriminant Analysis. Compared with Logistic Regression, LDA is based on distributional assumptions for the predictors within each class and produces a linear decision boundary. This method is fully coherent with the classification labs and is therefore a natural benchmark.
+
+```{r chunk_lda_results}
+lda_full
+cv_lda$conf_mat
+cv_lda$metrics
+```
+
+LDA is particularly useful when the two classes are reasonably well separated by linear combinations of the predictors and when its parametric assumptions are approximately acceptable.
+
+### 2.4. Quadratic Discriminant Analysis
+
+Quadratic Discriminant Analysis relaxes the equal-covariance assumption of LDA and allows a more flexible quadratic decision boundary. For this reason, it may capture nonlinear separation patterns that are not represented by LDA or Logistic Regression.
+
+```{r chunk_qda_results}
+qda_full
+cv_qda$conf_mat
+cv_qda$metrics
+```
+
+QDA is more flexible, but this flexibility comes at the price of estimating a larger number of parameters. Therefore, it is useful to verify whether the increase in complexity translates into a better cross-validated performance.
+
+### 2.5. Classification Tree and Pruning
+
+We now fit a classification tree using the same predictors. In line with the course lab on trees, we first grow a tree on the full training data, then use cross-validation through `cv.tree()` and `prune.misclass()` in order to identify a more appropriate tree size.
+
+```{r chunk_tree_results}
+summary(tree_full$full_tree)
+tree_full$cv_tree
+tree_full$best_size
+cv_tree$conf_mat
+cv_tree$metrics
+```
+
+```{r chunk_tree_plots, fig.width=12, fig.height=5}
+par(mfrow = c(1, 2))
+plot(tree_full$cv_tree$size, tree_full$cv_tree$dev,
+     type = "b", lwd = 2, col = "blue",
+     xlab = "Number of terminal nodes",
+     ylab = "Cross-validation error",
+     main = "Cost-complexity pruning")
+plot(tree_full$pruned_tree, type = "uniform")
+text(tree_full$pruned_tree, pretty = 0, cex = 0.7, col = "blue")
+par(mfrow = c(1, 1))
+```
+
+The first plot shows how the cross-validation error changes with the tree size, while the second plot displays the pruned tree selected on the full training set. This is the interpretable tree that we keep as the tree-based candidate for the final comparison.
+
+
+
+### 2.7. Comparison of the Models
+
+We now collect the cross-validated performance measures of all the models that were effectively estimated. The comparison is based primarily on accuracy and misclassification error computed from the out-of-fold predictions. According to the cross-validation results, Logistic Regression is the best-performing model, with an accuracy equal to `96.750%` and a misclassification error equal to `3.250%`. QDA and Random Forest follow very closely, both with accuracy `96.250%` and error `3.750%`, while LDA and Boosting (depth 2) also provide very competitive results, with accuracy `96.125%` and error `3.875%`. Bagging and, above all, the pruned classification tree show a lower predictive performance.
+
+```{r chunk_model_comparison}
+model_results <- bind_rows(
+  make_metric_row("Logistic Regression", cv_glm),
+  make_metric_row("LDA", cv_lda),
+  make_metric_row("QDA", cv_qda),
+  make_metric_row("Pruned Classification Tree", cv_tree)
+)
+
+if (length(optional_rows) > 0) {
+  model_results <- bind_rows(model_results, bind_rows(optional_rows))
+}
+
+model_results <- model_results %>%
+  arrange(desc(Accuracy), Misclassification.Error)
+
+best_model_index <- choose_best_index(model_results)
+best_model <- model_results[best_model_index, ]
+best_model_name <- best_model$Model[1]
+
+knitr::kable(model_results, digits = 3,
+             caption = "Comparison of the cross-validated performance of the candidate models")
+```
+
+```{r chunk_model_plot, fig.width=10, fig.height=5}
+ggplot(model_results,
+       aes(x = reorder(Model, Accuracy), y = Accuracy, fill = Model)) +
+  geom_col(width = 0.7, show.legend = FALSE) +
+  coord_flip() +
+  labs(title = "Cross-validated accuracy by model",
+       x = "Model",
+       y = "Accuracy (%)")
+```
+
+The comparison plot confirms that several models perform similarly well on this data. For this reason, the differences should not be interpreted as dramatic, also because cross-validation is based on repeated resampling and small numerical variations may occur from one partition to another. Nevertheless, the relative ranking is clear and stable: Logistic Regression remains in first position, followed by QDA, then by LDA. The confusion matrices obtained from the out-of-fold predictions are coherent with this ranking and support the choice of Logistic Regression as the final model for the next step of the project. This choice is justified not only by the best overall predictive performance, but also by the fact that Logistic Regression is simpler and more interpretable than the more flexible alternatives.
+
+As a secondary diagnostic, we can also examine the ROC curves of the core models using the out-of-fold predicted probabilities.
+
+The ROC analysis is consistent with the previous conclusions. The best models show very strong discrimination ability: Logistic Regression and QDA both achieve an AUC of `0.990`, while LDA reaches `0.989`. In contrast, the pruned classification tree has a lower AUC (`0.965`), which confirms that its discrimination capacity is weaker than that of the leading models. Therefore, the AUC values reinforce the comparison based on accuracy and misclassification error, but they are used here only as a secondary diagnostic and not as the primary selection criterion.
+
+```{r chunk_roc_curves, eval=requireNamespace("ROCR", quietly = TRUE), fig.width=7, fig.height=6}
+pred_glm <- ROCR::prediction(cv_glm$pred_prob, ad_model$Clicked.on.Ad)
+pred_lda <- ROCR::prediction(cv_lda$pred_prob, ad_model$Clicked.on.Ad)
+pred_qda <- ROCR::prediction(cv_qda$pred_prob, ad_model$Clicked.on.Ad)
+pred_tree <- ROCR::prediction(cv_tree$pred_prob, ad_model$Clicked.on.Ad)
+
+perf_glm <- ROCR::performance(pred_glm, measure = "tpr", x.measure = "fpr")
+perf_lda <- ROCR::performance(pred_lda, measure = "tpr", x.measure = "fpr")
+perf_qda <- ROCR::performance(pred_qda, measure = "tpr", x.measure = "fpr")
+perf_tree <- ROCR::performance(pred_tree, measure = "tpr", x.measure = "fpr")
+
+plot(perf_glm, col = "red", lwd = 2,
+     main = "ROC curves based on out-of-fold predictions")
+plot(perf_lda, add = TRUE, col = "blue", lwd = 2)
+plot(perf_qda, add = TRUE, col = "darkgreen", lwd = 2)
+plot(perf_tree, add = TRUE, col = "purple", lwd = 2)
+abline(a = 0, b = 1, lty = 2)
+legend("bottomright",
+       legend = c("Logistic Regression", "LDA", "QDA", "Pruned Tree"),
+       col = c("red", "blue", "darkgreen", "purple"),
+       lty = 1, lwd = 2, cex = 0.8)
+```
+
+### 2.8. Final Choice of the Model
+
+The comparison based on stratified 10-fold cross-validation shows that **Logistic Regression** is the best-performing model among the candidate classifiers. In particular, it achieves a cross-validated accuracy of **96.75\%** and a misclassification error of **3.25\%**, which are the best values observed in the comparison.
+
+Although **QDA**, **LDA**, also provide very strong and closely comparable results, **Logistic Regression** is selected as the final model because it combines the best overall predictive performance with a simpler and more interpretable structure. This makes it particularly suitable for the next step of the project, where the selected classifier must be trained on the full training set and then applied to the unlabeled test data.
+
+The ROC/AUC diagnostics, considered only as secondary evidence, are fully consistent with this conclusion. In fact, the best-performing models all achieve AUC values close to **0.99**, indicating a very strong discriminative ability, whereas the **pruned classification tree** shows a visibly lower performance and is therefore less competitive in this context.
+
+Finally, it is worth noting that small differences may arise because cross-validation is based on resampling. However, the overall ranking of the candidate models remains stable, and this further supports the choice of **Logistic Regression** as the final classifier for the rest of the project.
+
+## 3. Prediction on the Test Set
+
+After selecting Logistic Regression as the final classifier, we now refit this model on the full cleaned training dataset used in Step 2. In this way, the final model exploits all the available labeled information before being applied to the test units.
+
+It is important to remark that the test set was never used during model selection. Therefore, the predictions obtained in this section are produced on genuinely unseen and unlabeled data. We use exactly the same predictors selected in the previous section, namely `DT.on.Site`, `Age`, `Area.Income`, `DI.Usage`, and `Male`, and we apply the same preprocessing and variable handling adopted for the training data.
+
+```{r chunk_test_prediction_setup}
+ad_test <- read.csv(here::here("data", "advertising_test.csv"))
+
+colnames(ad_test)[colnames(ad_test) %in%
+                    c("Daily.Time.Spent.on.Site", "Daily.Internet.Usage")] <-
+  c("DT.on.Site", "DI.Usage")
+
+if ("X" %in% names(ad_test)) {
+  ad_test <- ad_test %>% dplyr::select(-X)
+}
+
+ad_test <- ad_test %>%
+  dplyr::mutate(
+    Timestamp = lubridate::ymd_hms(Timestamp),
+    Male = factor(Male, levels = c(0, 1), labels = c("Female", "Male"))
+  )
+
+ad_test_model <- ad_test %>%
+  dplyr::select(DT.on.Site, Age, Area.Income, DI.Usage, Male) %>%
+  dplyr::mutate(
+    Male = factor(as.character(Male), levels = levels(ad_model$Male))
+  )
+
+str(ad_test_model)
+head(ad_test_model)
+```
+
+We now estimate the final Logistic Regression model on the complete training set and use it to compute the predicted probability of class `"Yes"` for each unit in the test data. Afterwards, we convert these probabilities into class labels using the same threshold adopted in Step 2, namely `0.5`.
+
+```{r chunk_final_glm_test_predictions}
+glm_final <- glm(model_formula, family = binomial, data = ad_model)
+
+test_prob_yes <- as.numeric(
+  predict(glm_final, newdata = ad_test_model, type = "response")
+)
+
+test_pred_class <- ifelse(test_prob_yes > 0.5, "Yes", "No")
+test_pred_class <- factor(test_pred_class, levels = c("No", "Yes"))
+
+test_predictions <- ad_test_model %>%
+  mutate(
+    Prob.Clicked.Yes = test_prob_yes,
+    Predicted.Clicked.on.Ad = test_pred_class
+  )
+
+summary(test_prob_yes)
+table(test_pred_class)
+head(test_predictions)
+```
+
+The output above provides both the estimated probabilities and the corresponding predicted classes for the observations in the test set. At this stage, we do not yet create the final submission file: we limit ourselves to generating the predictions from the selected final model. The preparation of the final output file will be addressed in the next step of the project.
+
+## 4. Final Output File with Predicted Values
+
+In this final step, we construct the deliverable required by the assignment. After selecting Logistic Regression as the final classifier and applying it to the unseen test set, we attach the predicted values of the target variable to the original test data.
+
+The final output file therefore preserves the full structure of the test dataset and adds the predicted values of `Clicked.on.Ad`. In order to keep the deliverable clear and fully consistent with the assignment request, we export a clean file containing the original test observations together with the corresponding predicted class labels. This file represents the final output of the project.
+
+```{r chunk_output_file}
+advertising_test_with_predictions <- ad_test %>%
+  dplyr::mutate(Clicked.on.Ad = test_pred_class)
+
+output_file_path <- here::here("output", "advertising_test_with_predictions.csv")
+
+write.csv(advertising_test_with_predictions,
+          file = output_file_path,
+          row.names = FALSE)
+
+head(advertising_test_with_predictions)
+output_file_path
+```
+
+The file `advertising_test_with_predictions.csv` saved in the `output/` folder is the final deliverable of the assignment. It contains the original test data plus the predicted target values produced by the selected Logistic Regression model.
+

@@ -1,0 +1,965 @@
+---
+title: "StatLearning 2024/25"
+output: html_document
+---
+
+# Lab activity 7: Decision trees
+
+## 7.1. Fitting Regression Trees
+
+There are several R packages for regression trees; the easiest one is
+called, simply, `tree`. The syntax of the `tree()` function is quite similar to that of the `lm()` function.
+
+The `tree` library is used to construct classification and regression trees.
+
+
+```{r}
+library(tree)
+```
+
+#### Application to Hitters data set
+
+Recall that we use the Hitters data set to predict a baseball players
+Salary based on Years (the number of years that he has played in the major leagues) and Hits (the number of hits that he made in the previous year).
+The dataset consists of the  322 observations of major league players on the following 20 variables:
+
+*AtBat*: Number of times at bat in 1986  </br>
+*Hits*: Number of hits in 1986  </br>
+*HmRun*: Number of home runs in 1986  </br>
+*Runs*: Number of runs in 1986  </br>
+*RBI*: Number of runs batted in in 1986  </br>
+*Walks*: Number of walks in 1986  </br>
+*Years*: Number of years in the major leagues  </br>
+*CAtBat*: Number of times at bat during his career  </br>
+*CHits*: Number of hits during his career  </br>
+*CHmRun*: Number of home runs during his career  </br>
+*CRuns*: Number of runs during his career  </br>
+*CRBI*: Number of runs batted in during his career  </br>
+*CWalks*: Number of walks during his career </br>
+*League*: A factor with levels A and N indicating player’s league at the end of 1986  </br>
+*Division*: A factor with levels E and W indicating player’s division at the end of 1986  </br>
+*PutOuts*: Number of put outs in 1986 </br>
+*Assists*: Number of assists in 1986 </br>
+*Errors*: Number of errors in 1986 </br>
+*Salary*: 1987 annual salary on opening day in thousands of dollars </br>
+*NewLeague*: A factor with levels A and N indicating player’s league at the beginning of 1987 </br>
+
+
+```{r}
+library(ISLR2)
+attach(Hitters)
+```
+
+#### Step 1
+Remove observations that are missing Hitters or Salary values, and
+log-transform Salary so that its distribution has more of a typical bell-shape. Therefore, put salary on log scale and fit reg. tree and then build a regression tree.
+
+```{r}
+hitters=na.omit(Hitters) # remove NA values
+nrow(hitters)
+str(hitters)
+h.tree.fit = tree(log(Salary) ~ Years + Hits, data=hitters) 
+```
+
+#### Step 2
+Find the summary of the above regression tree and plot the
+ regression tree. Explain your results.
+
+```{r}
+summary(h.tree.fit)
+```
+
+The `summary()` function lists the variables that are used as internal nodes in the tree: 
+
+* *<span style="color:blue">Number of terminal nodes</span>* is the number of *leaf* nodes in the tree and is a direct representation of the complexity of the tree as each time we add a branch, we add a  *terminal node*. </br>
+* *<span style="color:blue">Total residual deviance</span>* is the sum of squares of the residuals </br>
+* The *<span style="color:blue">Residual mean deviance</span>* reported is simply the deviance divided by $n-|T_0|$, where n=263 e $|T_0|=8$, thus in this case is 263-8 = 255.
+There are 8 terminal nodes or leaves of the tree. Here *Residual mean deviance*  gives us an RMS error of 0.27. 
+
+Now plot the tree. In the diagram, the height of the branches indicates the effectiveness of the split in the reduction of RSS. In the example, the first splits are the most effective.
+
+```{r}
+plot(h.tree.fit)
+text(h.tree.fit,cex=0.75,col="blue")
+```
+
+**Regression tree for predicting log salary from hits and years played.** 
+
+At each internal node, we ask the associated question, and go to the 
+left child if the answer is "yes", to the right child if the answer is "no".  Note that leaves are labeled with log-salary.
+
+
+```{r}
+h.tree.fit
+```
+
+To interpret the results, note that:
+
+*Terminal nodes* are indicated with an asterisk (8 in this case). The others are internal nodes
+
+The first line of the output gives us the key to reading the results:
+
+* *node*: node number </br>
+*  *split*: subdivision criterion </br>
+*  *n*: number of observations </br>
+*  *deviance*:  *RSS* in that node in the case of regression trees the value of the Gini index or entropy in the case of classification trees </br>
+* *yval*: the mean value of Y in that node, that is, the prediction if the node is terminal. 
+  
+Thus, the data are interpreted as follows
+
+* node 1:  </br>
+includes all units of the dataset=263   </br>
+RSS= 207.200   </br>
+the logSalary average is $5.927   </br>
+
+* node 2:  </br>
+*the first split is defined by the Years<4.5 condition:*   </br>
+ there are 90 players that satisfy the condition,   </br>
+the RSS for this group of players is 42.350   </br>
+the logSalary average for the group is $5.107   </br>
+
+**Control the parameters of the tree**   </br> 
+The parameters for constructing the tree can be controlled 
+with the `tree.control()` function   </br> 
+
+* `tree.control(nobs, mincut = 5, minsize = 10, mindev = 0.01)`
+
+where:   </br>
+
+- *<span style="color:blue">nobs</span>*: number of observations in the analyzed data set   </br>
+- *<span style="color:blue">mincut</span>*: The minimum number of observations to include in either child node.
+ This is a weighted quantity; the observational weights are used to 
+compute the "number". The default is 5.  </br>
+- *<span style="color:blue">minsize</span>*: The smallest allowed node size: a weighted quantity. The default is 10.   </br>
+- *<span style="color:blue">mindev</span>*: the minimum deviance to proceed to a split. The within-node deviance must be at least this times that of the root node for the node to be split.
+
+```{r}
+setup<-tree.control(nrow(hitters), mincut = 5, minsize = 10, mindev = 0.1)
+h.tree.fit1<-tree(log(Salary)~Hits+Years,hitters,control=setup)
+summary(h.tree.fit1)
+plot(h.tree.fit1)
+text(h.tree.fit1, cex=0.75,col="blue")
+h.tree.fit1
+```
+
+To obtain a larger tree, use, for example *mindev=0.001*.
+
+```{r}
+setup<-tree.control(nrow(hitters), mincut = 5, minsize = 10, mindev = 0.001)
+h.tree.fit2<-tree(log(Salary)~Hits+Years,hitters,control=setup)
+plot(h.tree.fit2, lwd=1)
+text(h.tree.fit2, cex=0.75,col="blue")
+```
+
+Use the option <span style="color:magenta">type="uniform"</span> to have a more readable result.
+
+```{r}
+plot(h.tree.fit2,lwd=1,type="uniform")
+text(h.tree.fit2,cex=0.5,col="blue")
+h.tree.fit2
+```
+
+#### Step 3 Cross Validation and Pruning
+
+The `tree` package contains functions prune.tree and cv.tree for pruning trees # by cross-validation. 
+
+The `cv.tree()` function cross-validates to achieve the optimal level of tree complexity.
+
+- To adapt regression trees use the `FUN = prune.tree` argument (in which case RSS will be the guiding criterion) </br>
+- To adapt classification trees use the `FUN = prune.misclass` argument (in which case the error rate will be the guiding criterion)
+
+
+```{r}
+set.seed (3)
+cv.hitters =cv.tree(h.tree.fit ,FUN=prune.tree)
+cv.hitters
+```
+
+The output of cv.tree() will report:
+
+a. the number of terminal nodes of each tree considered (size). 
+b. the corresponding RSS (or error rate) (dev).  <
+c. and the value of the cost-complexity parameter used (k), 
+which corresponds to $\alpha$).  
+
+The number $K$ of folds of the cross-validation can be also selectet (by default $K=10$).
+
+Note that, despite the name, *<span style="color:blue">dev</span>* corresponds to the <span style="color:blue">cross-validation error rate</span>.
+
+We report the results for size and dev in a graph
+
+```{r}
+plot(cv.hitters$size,cv.hitters$dev,type="b", lwd=3,col="blue",
+     xlab="Number of terminal nodes", ylab="RSS",main="Cost complexity pruning" )
+```
+
+Cross-validation indicates that the optimal size is 3.
+
+**The pruned tree**
+
+At this point, use the `prune.tree()` function to prune the initial tree to the number of nodes chosen based on the results obtained by cross-validation. 
+
+First, consider a tree with 3 terminal nodes (`best=3`)
+
+```{r}
+prune.hitters=prune.tree(h.tree.fit, best =3)
+plot(prune.hitters,lwd=1)
+text(prune.hitters ,pretty =0,cex=1,col="blue")
+```
+
+And afterwards, consider a tree with 5 terminal nodes (`best=5`)
+
+```{r}
+prune.hitters=prune.tree(h.tree.fit, best =5)
+plot(prune.hitters,lwd=1)
+text(prune.hitters ,pretty =0,cex=1,col="blue")
+```
+
+The prune.tree has an optional method argument.
+The default is *<span style="color:blue">method="deviance"</span>*, which fits by minimizing the mean squared error (for continuous responses) or the negative log
+likelihood (for discrete responses).
+
+
+Another way to show the data:
+
+```{r}
+Salary.deciles <- quantile(log(hitters$Salary), 0:10/10)
+cut.logSalary    <- cut(log(hitters$Salary), Salary.deciles, include.lowest=TRUE)
+plot(Years,Hits,col=gray.colors(10, start = 1., end = 0.0)[cut.logSalary],pch=20, xlab="Years", ylab="Hits")
+partition.tree(prune.hitters,ordvars=c("Years","Hits"), add=T)
+```
+
+#### Application to the `Boston` data
+
+Here we fit a regression tree to the `Boston`  data set that
+is contained in the library MASS. The Boston data frame has 506 rows and 14 columns and contains the following variables:
+
+*crim*: per capita crime rate by town. </br>
+*zn*: proportion of residential land zoned for lots over 25,000 sq.ft.  </br>
+*indus*: proportion of non-retail business acres per town. </br>
+*chas*: Charles River dummy variable (= 1 if tract bounds river; 0 otherwise).  </br>
+*nox*: nitrogen oxides concentration (parts per 10 million).  </br>
+*rm*: average number of rooms per dwelling.  </br>
+*age*: proportion of owner-occupied units built prior to 1940. </br>
+*dis*: weighted mean of distances to five Boston employment centres. rad index of accessibility to radial highways.  </br>
+*tax*: full-value property-tax rate per $10,000.  </br>
+*ptratio*: pupil-teacher ratio by town.  </br>
+*black*: 1000(Bk-0.63)^2 where Bk is the proportion of blacks by town.  </br>
+*lstat*: lower status of the population (percent).  </br>
+*medv*: median value of owner-occupied homes in $1000s.
+
+```{r}
+library(MASS)
+attach(Boston) 
+```
+
+First, we create a training set, and fit the tree to the training data.
+
+
+```{r}
+set.seed(1)
+train <- sample(1:nrow(Boston), nrow(Boston) / 2)
+tree.boston <- tree(medv ~ ., Boston, subset = train)
+summary(tree.boston)
+```
+
+Notice that the output of `summary()` indicates that only four of the variables have been used in constructing the tree. In the context of a regression tree, the deviance is simply the sum of squared errors for the tree. We now plot the tree.
+
+```{r}
+plot(tree.boston,lwd=2)
+text(tree.boston,pretty=0, cex=0.75,col="blue")
+```
+
+The variable `lstat` measures the percentage of individuals with {lower  socioeconomic status}, while the variable `rm` corresponds to the average number of rooms. The tree indicates that larger values of `rm`, or lower values of `lstat`, correspond to more expensive houses. For example, the tree predicts a median house price of $$45{,}400$ for homes in census tracts in which `rm >= 7.553`.
+
+It is worth noting that we could have fit a much bigger tree, by
+passing `control = tree.control(nobs = length(train), mindev = 0)` into the `tree()` function.
+
+Now we use the `cv.tree()` function to see whether pruning the tree will improve performance.
+
+```{r}
+cv.boston <- cv.tree(tree.boston)
+plot(cv.boston$size,cv.boston$dev,type='b', lwd=2,col="blue", 
+     xlab="Number of terminal nodes", ylab="Deviance")
+```
+
+In this case, the most complex tree  under consideration is selected by cross-validation. However, if we wish to prune the tree, we could do so as follows, using the `prune.tree()` function:
+
+```{r}
+prune.boston=prune.tree(tree.boston,best=5)
+plot(prune.boston)
+text(prune.boston,pretty=0, cex=0.75,col="blue")
+```
+
+In keeping with the cross-validation results, we use the unpruned tree to make predictions on the test set.
+
+```{r}
+yhat <- predict(tree.boston, newdata = Boston[-train, ])
+boston.test <- Boston[-train, "medv"]
+plot(yhat,boston.test, xlab="predicted values", ylab="test values")
+abline(0, 1)
+test_set.MSE.tree=mean((yhat-boston.test)^2)
+test_set.MSE.tree
+sqrt(test_set.MSE.tree)
+```
+
+In other words, the  test set MSE associated with the regression tree is test_set.MSE (value). The square root of the MSE is therefore around 
+sqrt(test_set.MSE) (value), indicating that this model leads to test 
+ predictions that are (on average) within around $sqrt(test_set.MSE) (value) of the true median home value for the census tract.
+
+
+Now consider some other packages for decision tree modeling
+
+```{r}
+library(rpart) # Recursive partitioning for classification, regression     and survival trees
+library(rpart.plot) # Extends plot.rpart() and text.rpart() in the       'rpart' package.
+library(rattle) # The R Analytic Tool To Learn Easily (Rattle) provides a collection of utilities functions for the data scientist. 
+library(RColorBrewer) # Provides color schemes for maps (and other graphics) 
+```
+
+Consider learning and test sets:
+
+```{r}
+attach(Boston)
+set.seed(1)
+nL<-nrow(Boston)/2
+train = sample(1:nrow(Boston), nL )
+```
+
+```{r}
+Boston.tree.fit<-rpart(medv~.,Boston,subset=train)
+rpart.plot(Boston.tree.fit)
+rpart.plot(Boston.tree.fit, type=0) # simple output
+rpart.plot(Boston.tree.fit, type=1) # label all nodes
+rpart.plot(Boston.tree.fit, type=2) # default - split labels below node labels
+rpart.plot(Boston.tree.fit, type=3) # left and right split labels
+rpart.plot(Boston.tree.fit, type=4) # like type=3 but with interior labels
+rpart.plot(Boston.tree.fit, type=5) # variable name in interior nodes
+```
+
+Another kind of plot:
+
+```{r}
+fancyRpartPlot(Boston.tree.fit)
+```
+
+and save the plot
+
+```{r}
+jpeg("Boston_tree.jpg")
+fancyRpartPlot(Boston.tree.fit)
+dev.off()
+```
+
+Analyse the complexity parameter denoted by <span style="color:magenta">"CP"</span> (that is, <span style="color:blue">CP=alpha</span>)
+
+```{r}
+printcp(Boston.tree.fit)
+```
+
+1. The complexity table is printed from the smallest tree (no splits) to
+the largest one. 
+2. The number of splits is listed, rather than the number of nodes. 
+3. The number of nodes is always 1 + the number of splits.
+4. For easier reading, the error columns have been scaled so that the first node  has an error of 1. 
+5. The complexity parameter column has been similarly scaled.
+6. The relative error is 1-$R^2$, similar to linear regression. This is the error on the observations used to estimate the model.
+7.The *xerror* is  the cross-validation error. It is related to the PRESS stastistics (Predicted Residual Error Sum of Squares - PRESS) statistic, that is a form of cross-validation used in regression analysis
+8. The first split appears to improve the fit the most. The last split adds little improvement to the apparent error, and increases the cross-validated error.
+
+```{r}
+plotcp(Boston.tree.fit)
+```
+
+
+## 2. Fitting Classification Trees
+
+
+We first use classification trees  to analyze the `Carseats` data set.
+In these data, `Sales` is a continuous variable, and so we begin by recoding it  as a binary variable. We use the `ifelse()` function to create a variable, called `High`, which takes on a value of `Yes` if the `Sales` variable exceeds $8$,
+and takes on a value of `No` otherwise.
+
+```{r}
+library(ISLR2)
+attach(Carseats)
+High <- factor(ifelse(Sales <= 8, "No", "Yes"))
+```
+
+Finally, we use the `data.frame()` function to merge `High` with the rest of the `Carseats` data.
+
+```{r}
+Carseats1 <- data.frame(Carseats, High)
+str(Carseats1)
+```
+
+#### Step 1
+Check if there are missing values:
+
+```{r}
+sum(is.na(Carseats1))
+```
+
+There is no missing values.
+
+#### Step 2
+Find the summary of the classification tree and plot the
+classification tree. Explain your results.
+
+We now  use the `tree()` function to fit a classification tree in order to predict `High` using all variables but `Sales`.
+The syntax of the `tree()` function is quite similar to that of the `lm()` function.
+
+```{r}
+tree.carseats <- tree(High ~ . - Sales, Carseats1)
+```
+
+The `summary()` function lists the variables that are used as internal nodes in the tree, the number of terminal nodes, and the (training) error rate.
+
+```{r}
+summary(tree.carseats)
+```
+
+We see that the training error rate is  $9\%$.
+For classification trees, the deviance reported in the output of `summary()` is
+given by
+\[
+-2 \sum_m \sum_k n_{mk} \log \hat{p}_{mk},
+\]
+ where $n_{mk}$ is the number of observations in the $m$th terminal node that belong to the $k$th class. This is closely related to the entropy.
+A small deviance indicates a tree that provides a good fit to the (training) data.
+The *<span style="color:blue">residual mean deviance</span>* reported is simply the deviance divided by $n-|{T}_0|$, which in this case is $400-27=373$.
+
+One of the most attractive properties of trees is that they can be  graphically displayed. We use the `plot()` function to display the tree structure, and the `text()` function to display the node labels. The argument `pretty = 0` instructs `R` to include the category names for any qualitative predictors, rather than simply displaying a letter for each category.
+
+```{r}
+plot(tree.carseats,lwd=1,type="uniform")
+text(tree.carseats, cex=0.75, col="blue", pretty = 0)
+```
+
+
+The most important indicator of `Sales` appears to be shelving location, since the first branch differentiates `Good` locations from `Bad` and `Medium` locations.
+
+If we just type the name of the tree object,  `R` prints output corresponding to each branch of the tree. `R` displays the split criterion  (e.g. `Price < 92.5`), the number of observations in  that branch, the deviance,  the overall prediction for the branch (`Yes` or `No`),  and the fraction of observations in that branch that take on values of `Yes` and `No`. Branches that lead to terminal nodes are indicated using asterisks.
+
+```{r}
+tree.carseats
+```
+
+where, for classification trees,  `yval` gives the  majority class.
+
+#### Step 3: Analysis on training and test set
+
+
+In order to properly evaluate the performance of a classification tree
+on these data, we must estimate the test error rather than simply
+computing the training error. We split the observations into a
+training set and a test set, build the tree using the training set,
+and evaluate its performance on the test data. The `predict()`
+function can be used for this purpose. 
+
+In the case of a classification
+tree, the argument `type = "class"` instructs `R` to return the
+actual class prediction. This approach leads to correct predictions
+for around $77\,\%$ of the locations in the test data set.
+
+```{r}
+set.seed(2)
+nL=200
+train=sample(1:nrow(Carseats1), nL)
+Carseats.test=Carseats1[-train,]
+High.test=High[-train]
+nT<-dim(Carseats.test)[1]
+nT
+tree.carseats=tree(High~.-Sales,Carseats1,subset=train)
+tree.pred=predict(tree.carseats,Carseats.test,type="class")
+```
+
+Then, compute the confusion matrices
+
+```{r}
+table(tree.pred,High.test)
+confMat.tree=addmargins(table(tree.pred,High.test))
+confMat.tree
+accuracy.tree.test=(confMat.tree[1,1]+confMat.tree[2,2])/nT*100
+accuracy.tree.test
+delta.tree.test=100-accuracy.tree.test
+delta.tree.test
+```
+
+This approach leads to correct predictions for around 77% of the locations in the test data set.
+
+#### Step 4: Cross Validation and Pruning
+
+Next, we consider whether pruning the tree might lead to improved  results.
+The function `cv.tree()` performs cross-validation in order to  determine the optimal level of tree complexity; cost complexity pruning is used in order to select a sequence of trees for consideration.
+We use the argument `FUN = prune.misclass` in order to indicate that we want the classification error rate to guide the cross-validation and pruning process, rather than the default for the `cv.tree()` function, which is deviance. The `cv.tree()` function reports the number of terminal nodes of each tree considered (`size`) as well as the corresponding error rate and the value of the cost-complexity parameter used (`k`, which corresponds to $\alpha$ in (8.4)).
+
+```{r}
+set.seed(7)
+cv.carseats <- cv.tree(tree.carseats, FUN = prune.misclass)
+names(cv.carseats)
+cv.carseats
+```
+
+Despite its name, `dev` corresponds to the number of
+cross-validation errors. The tree with 9 terminal nodes results in only 74 cross-validation errors.  We plot
+the  error rate as a function of both `size` and
+`k`.
+
+```{r}
+par(mfrow = c(1, 2))
+plot(cv.carseats$size,cv.carseats$dev,type="b",lwd=2,col="blue",
+         xlab="Number of terminal nodes", ylab="Deviance" )
+plot(cv.carseats$k,cv.carseats$dev,type="b",lwd=2,col="blue",
+         xlab="Number of terminal nodess", ylab="Deviance" )
+par(mfrow=c(1,1))
+```
+
+
+We now apply the  `prune.misclass()`  function in order to prune the tree to obtain the nine-node tree.
+
+```{r}
+opt.nodes<-cv.carseats$size[which.min(cv.carseats$dev)]
+opt.nodes
+prune.carseats=prune.misclass(tree.carseats,best=opt.nodes)
+```
+
+The tree with 9 terminal nodes results in the lowest cross-validation error rate, with 50 cross-validation errors.
+
+
+```{r}
+plot(prune.carseats)
+text(prune.carseats, pretty = 0)
+```
+
+* Remember that the argument `pretty=0` instructs R to include the category names for any qualitative predictors, rather than simply displaying a letter for each category.
+
+#### Step 5: Apply the pruned tree to the test data
+
+How well does this pruned tree perform on the test data set? Once again, we apply the `predict()` function. 
+
+```{r}
+tree.pred <- predict(prune.carseats, Carseats.test,
+    type = "class")
+table(tree.pred, High.test)
+(97 + 58) / 200
+tree.pred=predict(prune.carseats,Carseats.test,type="class")
+table(tree.pred,High.test)
+confMat.tree.pruned=addmargins(table(tree.pred,High.test))
+confMat.tree.pruned
+accuracy.tree.pruned.test=(confMat.tree.pruned[1,1]+confMat.tree.pruned[2,2])/nT*100
+accuracy.tree.pruned.test
+delta.tree.pruned.test=100-accuracy.tree.pruned.test
+delta.tree.pruned.test
+
+```
+
+Now $77.5\,\%$ of the test observations are correctly classified, so not only has the pruning process produced a more interpretable tree, but it has also slightly improved the classification accuracy.
+
+If we increase the value of `best`, we obtain a larger pruned tree with slight lower classification accuracy:
+
+```{r}
+prune.carseats <- prune.misclass(tree.carseats, best = 14)
+plot(prune.carseats)
+text(prune.carseats, pretty = 0)
+tree.pred <- predict(prune.carseats, Carseats.test,
+    type = "class")
+table(tree.pred,High.test)
+confMat.tree.pruned=addmargins(table(tree.pred,High.test))
+confMat.tree.pruned
+accuracy.tree.pruned.test=(confMat.tree.pruned[1,1]+confMat.tree.pruned[2,2])/nT*100
+accuracy.tree.pruned.test
+delta.tree.pruned.test=100-accuracy.tree.pruned.test
+delta.tree.pruned.test
+```
+
+
+## 3. Bagging and Random Forests
+
+
+Here we apply bagging and random forests to the `Boston` data, using the `randomForest` package in `R`. The exact results obtained in this section may depend on the version of `R` and the version of the `randomForest` package installed on your computer.
+
+First, consider regression trees.
+
+```{r}
+set.seed(1)
+train <- sample(1:nrow(Boston), nrow(Boston) / 2)
+tree.boston <- tree(medv ~ ., Boston, subset = train)
+summary(tree.boston)
+```
+
+Now consider Random Forests, where the argument `mtry = 12` indicates that all $12$ predictors should be considered for each split of the tree---in other words, that bagging should be done.
+
+
+```{r}
+library(randomForest)
+set.seed(1)
+bag.boston <- randomForest(medv ~ ., data = Boston,
+    subset = train, mtry = 12, importance = TRUE)
+bag.boston
+```
+
+The argument `mtry = 12` indicates that all $12$ predictors should be considered for each split of the tree---in other words, that bagging should be done.
+
+How well does this bagged model perform on the test set?
+
+```{r}
+yhat.bag <- predict(bag.boston, newdata = Boston[-train, ])
+boston.test=Boston[-train,"medv"]
+plot(yhat.bag, boston.test, pch=20, col="red", cex=0.8, xlab="predicted values", ylab="test values")
+abline(0, 1)
+test_set.MSE_bag=mean((yhat.bag-boston.test)^2)
+test_set.MSE_bag
+sqrt(test_set.MSE_bag)
+test_set.MSE.tree    # see above
+```
+
+The test set MSE associated with the bagged regression tree is about two-thirds of that obtained using an optimally-pruned single tree.
+
+We could change the number of trees grown by `randomForest()` using the `ntree` argument (default value: ntree=500):
+
+```{r}
+bag2.boston <- randomForest(medv ~ ., data = Boston,
+    subset = train, mtry = 12, ntree = 25)
+yhat.bag2 <- predict(bag2.boston, newdata = Boston[-train, ])
+test_set.MSE_bag2=mean((yhat.bag2-boston.test)^2)
+test_set.MSE_bag2
+sqrt(test_set.MSE_bag2)
+```
+
+We get essentially the same value as before (to be more precise, slightly worse).
+
+
+Growing a random forest proceeds in exactly the same way, except that we use a smaller value of the `mtry` argument. By default, `randomForest()` uses $p/3$ variables when building a random forest of regression trees, and $\sqrt{p}$ variables when building a random forest of classification trees. Here we use `mtry = 6`.
+
+```{r}
+set.seed(1)
+rf.boston <- randomForest(medv ~ ., data = Boston,
+    subset = train, mtry = 6, importance = TRUE)
+yhat.rf <- predict(rf.boston, newdata = Boston[-train, ])
+test_set.MSE_rf=mean((yhat.rf-boston.test)^2)
+test_set.MSE_rf
+sqrt(test_set.MSE_rf)
+sqrt(test_set.MSE_bag)
+sqrt(test_set.MSE_bag2)
+```
+
+The test set MSE is smaller and this indicates that random forests yielded an improvement over bagging in this case.
+
+Using the `importance()` function, we can view the importance of each variable.
+
+```{r}
+importance(rf.boston)
+```
+
+Two measures of variable importance are reported. 
+
+* `%IncMSE` is based upon the mean decrease of accuracy in predictions on the out of bag samples when a given variable is permuted. 
+* `IncNodePurity´ is a measure of the total decrease in node impurity that results from splits over that variable, averaged over all trees (this was plotted in Figure 8.9). 
+
+Note that in the case of regression trees, the node impurity is measured by the training RSS, and for classification trees by the deviance. 
+
+Plots of these importance measures can be produced using the `varImpPlot()` function.
+
+```{r}
+varImpPlot(rf.boston, col="blue", pch=20, main="Boston data")
+```
+
+The results indicate that across all of the trees considered in the random forest, the wealth of the community (`lstat`) and the house size (`rm`) are by far the two most important variables.
+
+
+## 4. Boosting
+
+Here we use the `gbm` package, and within it the `gbm()` function, to fit boosted regression trees to the `Boston` data set. 
+
+We run `gbm()` with the option `distribution = "gaussian"` since this is a regression problem; if it were a binary classification problem, we would use `distribution = "bernoulli"`.
+
+The argument `n.trees = 5000` indicates that we want $5000$ trees, and the option `interaction.depth = 4` limits the depth of each tree.
+
+```{r}
+library(gbm)
+set.seed(1)
+boost.boston <- gbm(medv ~ ., data = Boston[train, ],
+    distribution = "gaussian", n.trees = 5000,
+    interaction.depth = 4)
+```
+
+The `summary()` function produces a relative influence plot and also outputs the relative influence statistics.
+
+```{r}
+summary(boost.boston)
+```
+
+We see that `lstat` and `rm` are by far the most important variables. 
+
+We can also produce *partial dependence plots* for these two variables. These plots illustrate the marginal effect of the selected variables on the response after *integrating* out the other variables. In this case, as we might expect, median house prices are increasing with `rm` and decreasing with `lstat`.
+
+```{r}
+par(mfrow=c(1,2))
+plot(boost.boston,i="rm", ylab="median house prices")
+plot(boost.boston,i="lstat", ylab="median house prices")
+par(mfrow=c(1,1))
+```
+
+
+We now use the boosted model to predict `medv` on the test set:
+
+```{r}
+yhat.boost <- predict(boost.boston,
+    newdata = Boston[-train, ], n.trees = 5000)
+test_set.MSE_boost=mean((yhat.boost - boston.test)^2)
+test_set.MSE_boost
+test_set.MSE_rf
+test_set.MSE_bag
+```
+
+We can compare the test MSE obtained  with the test MSE of random forests and bagging. 
+
+If we want to, we can perform boosting with a different value of the shrinkage parameter $\lambda$ in (8.10). The default value is $0.001$, but this is easily modified.
+Here we take $\lambda=0.2$.
+
+```{r}
+boost.boston <- gbm(medv ~ ., data = Boston[train, ],
+    distribution = "gaussian", n.trees = 5000,
+    interaction.depth = 4, shrinkage = 0.2, verbose = F)
+yhat.boost <- predict(boost.boston,
+    newdata = Boston[-train, ], n.trees = 5000)
+test_set.MSE_boost2=mean((yhat.boost - boston.test)^2)
+test_set.MSE_boost2
+```
+
+In this case, using $\lambda=0.2$ leads to a lower test MSE than $\lambda=0.001$.
+
+
+## 5. Classification Trees: Application to Default Data
+
+Let us consider the `Default` data in the `ISLR2` package consisting of 10000 observations on the following 4 variables:
+
+*default*: A factor with levels No and Yes indicating whether the customer defaulted on their debt </br>
+*student*: A factor with levels No and Yes indicating whether the customer is a student  </br>
+*balance*: The average balance that the customer has remaining on their credit card after making their monthly payment  </br>
+*income*:  Income of customer
+
+Default data have been modeled by Logistic Regression and Linear Discriminant Analysis. 
+
+```{r}
+library(ISLR2)
+attach(Default)
+N<-nrow(Default)
+str(Default)
+head(Default)
+```
+
+### Tree 1
+
+```{r}
+Default.tree1=tree(formula = default ~ ., data = Default)
+summary(Default.tree1)
+plot(Default.tree1,lwd=2)
+text(Default.tree1,pretty=0,col="blue",cex=1)
+```
+
+Overall Tree 1 seems to have a good performance as the total overall error rate is 2.75%.
+
+Tree 1 looks too simple, it uses only one variable and in definitive,  it classifies a unit as defaulter if Balance is >= 1856.76.
+
+One might like to know what are the probabilities associated with each of the terminal nodes.
+To this end, have a look at the analytical structure of the tree
+
+```{r}
+Default.tree1
+```
+
+Note that node 4), 5), 6) and 7) are terminal nodes.
+Terminal node 7), the leftmost on the graph gives probability of default, for a unit with  balance >= 1856.76, equal to 0.638.
+
+#### Predicting probabilities on the single units
+
+We can use the function `predict()` on train or test units to estimate the probability that a unit is a defaulter:
+
+```{r}
+set.seed(21)
+sub.Default=Default[sample(nrow(Default),5),]
+sub.Default
+```
+
+Predict probabilities
+
+```{r}
+Pred.Default.tree1=round(predict(Default.tree1,sub.Default),digits=4)
+Pred.Default.tree1
+```
+
+Note that probabilities for both classes are given in a data.frame. Put everything together to make comparisons:
+
+```{r}
+data.frame(sub.Default,Pred.Default.tree1)
+```
+
+#### Predicting the class
+
+```{r}
+Pred_Cl.Default.tree1=predict(Default.tree1,sub.Default)
+Pred_Cl.Default.tree1
+```
+
+Adding the option type="class" will provide directly the predicted class:
+
+```{r}
+Pred_Cl.Default.tree1=predict(Default.tree1,sub.Default,type="class")
+Pred_Cl.Default.tree1
+```
+
+Analyze all together:
+
+```{r}
+data.frame(sub.Default,Pred.Default.tree1,"Pred.Class"=Pred_Cl.Default.tree1)
+```
+
+### Tree 2
+
+Before discussing further model 1 we might want to try growing a bigger tree to see  if other variables are considered (change mindev,  default value=0.01):
+
+```{r}
+setup=tree.control(nobs=nrow(Default), mindev=0.001)
+Default.tree2=tree(default~.,Default, control=setup)
+summary(Default.tree2)
+```
+
+There are terminal nodes and the ovall error rate has decreased to 2.37%.
+
+```{r}
+plot(Default.tree2,lwd=2)
+text(Default.tree2,pretty=0,col="blue",cex=1)
+```
+
+Too confusing. Change visualization.
+
+```{r}
+plot(Default.tree2,type="uniform", lwd=2)
+text(Default.tree2,pretty=0,col="blue",cex=0.4)
+```
+
+#### Pruning
+
+Tree 2 looks really too big some. Pruning is needed
+```{r}
+cv.Default=cv.tree(Default.tree2,FUN=prune.misclass)
+cv.Default
+```
+
+We report the results for size and dev in a graph
+
+```{r}
+plot(cv.Default$size,cv.Default$dev,type="b", lwd=3,col="blue",
+     xlab="Number of terminal nodes", ylab="RSS",main="Cost complexity pruning" )
+```
+
+From the cross validation results it appears that a 3 terminal nodes pruned tree  is as good as the 73 terminal nodes tree.
+
+We might want to retain however a medium sized tree. 
+This will also allow to have a larger range of probabilities of prediction.
+
+In the following, we'll consider an 8 terminal nodes tree (call it tree 3) and a 24 terminal nodes tree (call it tree 4).
+
+
+### Tree 3 (8 terminal nodes tre)
+
+```{r}
+prune.Default.tree3=prune.misclass(Default.tree2,best=8)
+summary(prune.Default.tree3)
+plot(prune.Default.tree3,type="uniform")
+text(prune.Default.tree3,pretty=0,col="blue",cex=1)
+```
+
+### Tree 4 (24 terminal nodes)
+
+```{r}
+prune.Default.tree4=prune.misclass(Default.tree2,best=24)
+summary(prune.Default.tree4)
+plot(prune.Default.tree4,type="uniform")
+text(prune.Default.tree4,pretty=0,col="blue",cex=1)
+```
+
+The residual mean variance is  now smaller than in the tree with 8 terminal nodes, but the model is quite more complex.
+
+
+#### Classification Table - tree 3
+
+Consider a classification table for tree 3.
+
+```{r}
+Pred.Default.tree3=predict(prune.Default.tree3, type="class")
+confDefault.tree3=addmargins(table(Default$default,Pred.Default.tree3))
+confDefault.tree3
+accuracy.Default.tree3=(confDefault.tree3[1,1]+confDefault.tree3[2,2])/N*100
+accuracy.Default.tree3
+delta.Default.tree3=100-accuracy.Default.tree3
+delta.Default.tree3
+```
+
+
+The total estimated error rate is (2.55%). Although the total error seems very low note that the simple rule that classifies 
+all units as nonDefault has a total error 3.33%.
+
+If the error rate is computed by subgroups then 
+$35/9667*100=0.4$ have been incorrectly classified as defaulter
+$220/333*100=66.1$ have been incorrectly classified as nondefaulter
+
+ From the point of view of the credit card company such a high percentage of wrong classifications among the defaulters may be unacceptable.
+
+The Bayes classifier, assigning the unit to the class with higher predicted probability ensures the lowest total error. It may not be the optimal strategy for all situations.
+
+#### Specificity and Sensitivity
+
+**Reminder.**
+Borrowing a typical terminology of clinical trials we define:
+
+* The *Sensitivity* of the classifier as its ability to correctly identify the defaulter. In this case 113 over 333 corresponding to 33.9%, also called true positives.
+
+* The *Specificity* of the classifier as its ability to correctly identify the nondefaulter. In this case 9632 over 9667 corresponding to 99.64%, also called true negatives.
+
+The units incorrectly classified are defined
+
+* false negatives: defaulters classified as non defaulters
+* false positives: nondefaulters classified as defaulters
+
+**Modify the decision rule.** If the classification according to the rule $P(default = Yes | X=x) > 0.5$
+produces low sensitivity, one might try, for example, with
+$P(default = Yes | X=x) > 0.15$:
+
+
+```{r}
+Pred.Default.tree3=predict(prune.Default.tree3, Default)
+head(Pred.Default.tree3)
+```
+
+Build a vector that contains only "No":
+
+```{r}
+Pred.Cl.tree3=rep("No",nrow(Default))
+```
+
+Trasform to "Yes" units for which $Pred.Cl.tree3>0.15$. 
+Note that probabilities of Yes are in column 2 of Pred.Cl.tree3
+
+```{r}
+Pred.Cl.tree3[Pred.Default.tree3[,2]>0.15]="Yes"
+```
+
+and get the new classification table
+```{r}
+confDefault.tree3b=addmargins(table(Default$default,Pred.Cl.tree3))
+confDefault.tree3b
+accuracy.Default.tree3b=(confDefault.tree3[1,1]+confDefault.tree3[2,2])/N*100
+accuracy.Default.tree3b
+delta.Default.tree3b=100-accuracy.Default.tree3b
+delta.Default.tree3b
+```
+
+Now the error among defaulters is $65/333$ equal to 19.52% wrt 66.07 before. 
+
+* Sensitivity gives us another way to read change:  now it results $268/333$ i.e. 80.49% wrt 33.9% before
+* Specificity is now $8951/9667$, i.e. 93.59% and before was 99.64%.
+
+
+

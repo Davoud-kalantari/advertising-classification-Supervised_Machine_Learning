@@ -1,0 +1,629 @@
+---
+title: "StatLearning 2024/25"
+output: html_document
+---
+
+# Lab activity 5: Linear Methods for Classification - Part I
+
+
+## 5.1. Logistic regression 
+
+
+Let us consider the `Default` data in the `ISLR2` package consisting of 10000 observations on the following 4 variables:
+
+*default*: A factor with levels No and Yes indicating whether the customer defaulted on their debt </br>
+*student*: A factor with levels No and Yes indicating whether the customer is a student  </br>
+*balance*: The average balance that the customer has remaining on their credit card after making their monthly payment  </br>
+*income*:  Income of customer
+
+
+```{r}
+library(ISLR2)
+attach(Default)
+N<-nrow(Default)
+str(Default)
+head(Default)
+```
+
+Consider the model consider the model with one predictor *balance*. 
+
+The glm() function fits generalized linear models, a class of models that includes logistic regression. 
+The syntax of the `glm()` function is similar to that of `lm()`, except that we must pass in linear model  the argument `family=binomial` in order to tell `R` to run a logistic  regression rather than some other type of generalized linear model.
+
+```{r chunk2}
+glm.fit1=glm(default~balance, family=binomial, data=Default) 
+summary(glm.fit1, digits=3)
+```
+
+ The `predict()` function can be used to predict the probability that the market will go up, given values of the predictors. The `type = "response"` option tells `R` to output probabilities of the form $P(Y=1|X)$, as opposed to other information such as the logit. If no data set is supplied to the `predict()` function,
+then  the probabilities are computed for the training data that was used to fit the logistic regression model. The  procedure `predict.glm()` compute the the predicted numerical values and the function `head()` provides the first six values.
+
+#### Model with 1 predictor (glm1)
+
+```{r chunk3}
+glm.probs1=predict.glm(glm.fit1,type="response")
+head(glm.probs1)
+```
+
+Now transform the numerical values into categorical ones and summarize the results in the confusion matrix:
+
+```{r chunk4}
+glm.pred1=rep("No",N)
+glm.pred1[glm.probs1>.5]="Yes" # assign "Yes" for units with P(Y="Yes")>0.5
+table(glm.pred1)
+table(glm.pred1,Default$default) # confusion matrix
+confMat1<-addmargins(table(glm.pred1,Default$default))
+confMat1 
+```
+
+and add the marginal distributions:
+```{r chunk5}
+confMat1<-addmargins(table(glm.pred1,Default$default))
+confMat1 
+```
+
+Finally compute the accuracy and the misclassification error:
+
+```{r chunk6}
+accuracy1=(confMat1[1,1]+confMat1[2,2])/N*100 
+Err1=100-accuracy1   # misclassification error
+accuracy1
+Err1
+```
+
+#### Model with 2 predictors (glm2)
+
+Now consider the model with two predictors: balance and student:
+
+```{r chunk7}
+glm.fit2=glm(default~balance+student, family=binomial, data=Default)
+summary(glm.fit2, digits=3)
+```
+
+and afterwards compute the predicted values
+
+```{r chunk8}
+glm.predict2=predict.glm(glm.fit2,Default)
+glm.probs2=predict.glm(glm.fit2,type="response")
+```
+
+Transform the numerical values into categorical ones and summarize the results in the confusion matrix:
+
+```{r chunk9}
+glm.pred2=rep("No",N)
+glm.pred2[glm.probs2>.5]="Yes" # assign "Yes" for units with P(Y="Yes")>0.5
+table(glm.pred2)
+table(glm.pred2,Default$default) # confusion matrix
+```
+
+Finally, again add the marginal distributions and compute the accuracy and the misclassification error:
+
+```{r chunk10}
+confMat2<-addmargins(table(glm.pred2,Default$default))
+accuracy2=(confMat2[1,1]+confMat2[2,2])/N*100 
+Err2=100-accuracy2
+confMat2
+accuracy2
+Err2
+```
+
+
+#### Model with 3 predictors (glm3)
+
+Finally, consider the model with the three predictors: balance, income and student.
+
+```{r chunk11}
+glm.fit3=glm(default~balance+income+student, family=binomial, data=Default)
+summary(glm.fit3, digits=3)
+```
+
+and afterwards compute the predicted values
+
+```{r chunk12}
+glm.predict3=predict.glm(glm.fit3,Default)
+glm.probs3=predict.glm(glm.fit3,type="response")
+```
+
+Transform the numerical values into categorical ones and summarize the results in the confusion matrix:
+
+```{r chunk13}
+glm.pred3=rep("No",N)
+glm.pred3[glm.probs3>.5]="Yes"  
+table(glm.pred3)
+table(glm.pred3,Default$default)  
+```
+
+Finally, again add the marginals and compute the accuracy and the misclassification error:
+
+```{r chunk14}
+confMat3<-addmargins(table(glm.pred3,Default$default))
+accuracy3=(confMat3[1,1]+confMat3[2,2])/N*100 
+Err3=100-accuracy3
+confMat3
+accuracy3
+Err3
+```
+
+Even if the accuracies (and therefore the misclassification errors as well) in the three cases are almost the same, some differences emerge in the entries of the confusion matrix.
+
+### Analysis with learning and test sets
+
+To begin with, split the dataset into learning and test set using the *createDataPartition()* function in the `caret` package. Learning set is formed by 70% of units.
+
+```{r chunk15}
+library(caret)
+set.seed(1500)
+alpha=0.7
+trainIndex <- createDataPartition(Default$default, p = alpha, 
+                                  list = FALSE, 
+                                  times = 1)
+Default_L<-Default[trainIndex,]
+Default_T<-Default[-trainIndex,]
+nL<-nrow(Default_L)
+nT<-nrow(Default_T)
+nL
+table(Default_L$default)
+table(Default_L$default)/nL*100
+nT
+table(Default_T$default)
+table(Default_T$default)/nT*100
+```
+
+Fit the model with two predictors (*balance* and *student*) on the training set and compute: confusion matrix, accuracy and misclassification error:
+
+```{r chunk16}
+glm.fit2_L=glm(default~balance+student, family=binomial, data=Default_L)
+summary(glm.fit2_L, digits=3)
+glm.probs2_L=predict.glm(glm.fit2_L,type="response")
+glm.pred2_L=rep("No",nL)
+glm.pred2_L[glm.probs2_L>.5]="Yes" 
+table(glm.pred2_L)
+confMat2_L<-addmargins(table(glm.pred2_L,Default_L$default))
+accuracy2_L=(confMat2_L[1,1]+confMat2_L[2,2])/nL*100 
+Err2_L=100-accuracy2_L
+confMat2_L
+accuracy2_L
+Err2_L
+```
+
+In the learning set, we get an accuracy equal to 97.27, essentially equal to the value obtained in the entire dataset, equal to 97.32.
+
+Now compute the predicted values on the test set (note the option *newdata*):
+
+```{r chunk17}
+glm.probs2_T=predict.glm(glm.fit2_L, newdata=Default_T, type="response") # note the option newdata
+glm.pred2_T=rep("No",nT)
+glm.pred2_T[glm.probs2_T>.5]="Yes" 
+table(glm.pred2_T)
+table(glm.pred2_T,Default_T$default) 
+confMat2_T<-addmargins(table(glm.pred2_T,Default_T$default))
+accuracy2_T=(confMat2_T[1,1]+confMat2_T[2,2])/nT*100 
+Err2_T=100-accuracy2_T
+confMat2_T
+accuracy2_T
+Err2_T
+```
+
+
+
+
+## 5.2. Cross-Validation 
+
+Consider again the `Auto` dataset. Consider first the model with one predictor (*horsepower*) and fit the model using the functions `glm.fit` and `lm.fit`. They yield identical linear regression models:
+
+```{r chunk31}
+library(ISLR2)
+attach(Auto)
+glm.fit=glm(mpg~horsepower,data=Auto)
+coef(glm.fit)
+lm.fit=lm(mpg~horsepower,data=Auto)
+coef(lm.fit)
+```
+
+The library `boot` provides functions for cross validation. The function cv.glm calculates the estimated K-fold cross-validation prediction error  for generalized linear models. See the manual of the package "boot" on the CRAN for details.
+
+The function `cv.glm()` is part of the library `boot`and calculates the estimated $K$-fold cross-validation prediction error for generalized linear models. The function has the form  `cv.glm(data, glmfit, cost, K)` where:
+*cost*: A function of two vector arguments specifying the cost function for the cross-validation. The default is the average squared error function. </br>
+*K*: The number of groups into which the data should be split to estimate the cross-validation prediction error. <span style="color:magenta;">The default is to set $K$ equal to the number $n$ of observations in data which gives the usual leave-one-out cross-validation.</span> </br>
+
+```{r chunk32}
+library(boot) 
+cv.err=cv.glm(Auto,glm.fit)
+names(cv.err)
+```
+
+`delta` is an output of `cv.glm` providing a vector of length two one returned by cv.glm. The first component is the raw    cross-validation estimate of prediction error. The second component is the adjusted cross-validation estimate (a bias corrected version). 
+The two numbers in the delta vector contain the cross-validation results. In this
+case the numbers are identical (up to two decimal places) and correspond to the LOOCV statistic.
+
+```{r chunk33}
+cv.err$delta
+```
+
+Now consider ten repetitions of the cross-validation procedure
+
+```{r chunk34}
+cv.error=rep(0,10)
+for (i in 1:10){
+  glm.fit=glm(mpg~poly(horsepower,i),data=Auto)
+  cv.error[i]=cv.glm(Auto,glm.fit)$delta[1]
+}
+cv.error
+mean(cv.error)
+sd(cv.error)
+```
+
+### k-Fold Cross-Validation
+
+Now consider a $k$-fold cross-validation and set $k=10$:
+
+```{r chunk35}
+set.seed(17)
+degree=seq(from=1, to=10,by=1)
+cv.error.10=rep(0,10)
+for (i in 1:10){
+  glm.fit=glm(mpg~poly(horsepower,i),data=Auto)
+  cv.error.10[i]=cv.glm(Auto,glm.fit,K=10)$delta[1] # note here we set K=10
+}
+cv.error.10
+mean(cv.error.10)
+sd(cv.error.10)
+```
+
+and plot the errors vs. the LOOCV. The plot shows that there is little evidence that using cubic or high-order polynomial terms leads to lower test error than simply using a quadratic fit.
+
+```{r chunk36}
+plot(degree,cv.error.10, type="l", col="red")
+points(degree,cv.error, col="blue", type="l", lty=2)
+abline(h=cv.error.10[5], lty=3)
+legend(7.5, 24, legend=c("10-fold CV", "LOOCV"),
+       col=c("red", "blue"), lty=1:2, cex=0.8)
+```
+
+The two numbers associated with *delta* are essentially the same when LOOCV is performed. 
+
+When we instead perform k-fold CV, then the two numbers associated with delta differ slightly. 
+
+The first (delta[1], raw estimate) is the standard k-fold CV estimate. The second is a bias 
+corrected version. 
+
+```{r chunk37}
+cv.error.10_unbias=rep(0,10)
+for (i in 1:10){
+  glm.fit=glm(mpg~poly(horsepower,i),data=Auto)
+  cv.error.10_unbias[i]=cv.glm(Auto,glm.fit,K=10)$delta[2] # note here we set K=10
+}
+cv.error.10_unbias
+cv.error.10
+mean(cv.error.10_unbias)
+sd(cv.error.10_unbias)
+mean(cv.error.10)
+sd(cv.error.10)
+
+```
+
+On this data set, the two estimates are very similar to each other.
+
+```{r chunk38}
+plot(degree,cv.error.10, type="l", col="red")
+points(degree,cv.error.10_unbias, col="blue", type="l", lty=2)
+legend(6.5, 24, legend=c("raw estimate", "unbiased estimate"),
+       col=c("red", "blue"), lty=1:2, cex=0.8)
+```
+
+### The bootstrap
+
+Simple examples of boostrap datasets. Consider the population
+
+```{r}
+n=15
+x=seq(1:n)
+x
+```
+Here you are some bootstrap datasets:
+
+```{r}
+sample(x,n, replace=T )
+sample(x,n, replace=T )
+sample(x,n, replace=T )
+sample(x,n, replace=T )
+```
+In general, you generate a very large number of bootstrap datasets and compute the statistics of interest.
+
+
+Performing a bootstrap analysis in R entails only two steps.
+
+1. First, we must create a function that computes the statistic of interest.
+
+2. Second, we use the `boot()` function, which is part of the boot library, to perform the bootstrap by repeatedly sampling observations from the data
+set with replacement.
+
+We illustrate the bootstrap using the the Portfolio data set is in the ISLR2 package. A simple simulated data set containing 100 returns for each of two assets, X and Y. The data is used to estimate the optimal fraction to invest in each asset to minimize investment risk of the combined
+portfolio. One can then use the Bootstrap to estimate the standard error of this estimate.
+
+To begin with, consider some explorative analysis.
+
+```{r chunk39}
+library(boot)
+library(ISLR2)
+attach(Portfolio)
+str(Portfolio)
+summary(Portfolio)
+plot(Portfolio$X,Portfolio$Y, xlab="X", ylab="Y", pch=20, col="red")
+```
+
+Now let us build the function *alpha.fn* that returns, or outputs, an estimate for $\alpha$ based on applying the formula for alpha to the observations indexed by the argument index:
+
+```{r chunk40}
+alpha.fn=function(data,index){
+  X=data$X[index]
+  Y=data$Y[index]
+  return((var(Y)-cov(X,Y))/(var(X)+var(Y)-2*cov(X,Y)))
+}
+```
+
+Now compute $\alpha$ on the entire data set
+
+```{r chunk42}
+alpha.fn(Portfolio,1:100)
+```
+
+and afterwards on two samples of size 100 (with replacement) from the original data:
+
+```{r chunk43}
+set.seed(1)
+alpha.fn(Portfolio,sample(100,100,replace=T))
+alpha.fn(Portfolio,sample(100,100,replace=T))
+```
+
+The function `boot()` generates a number R of bootstrap replicates of a statistic applied to data. The function has the form `boot(data, statistic, R)` where
+
+*data*: is the data as a vector, matrix or data frame. </br>
+*statistic*: is a function which when applied to data returns a vector containing the statistic(s) of interest. </br>
+*R*: is the the number of bootstrap replicates.
+
+```{r chunk44}
+results<-boot(Portfolio,alpha.fn,R=1000)
+results
+```
+
+```{r chunk45}
+plot(results)
+```
+
+We also can compute (nonparametric bootstrap) confidence intervals for the estimate using the function `boot.ci()`. This function generates 5 different types of equi-tailed two-sided nonparametric confidence intervals. These are the first order normal approximation, the basic bootstrap interval, the studentized bootstrap interval, the bootstrap percentile interval, and the adjusted bootstrap percentile (BCa) interval. All or a subset of these intervals can be generated.
+
+```{r chunk46}
+boot.ci(results)
+```
+
+## 5.3. Estimating the Accuracy of a Linear Regression Model
+
+The bootstrap approach can be used to assess the variability of the coefficient estimates and predictions from a statistical learning method.
+
+Here we use the bootstrap approach in order to assess the variability of the estimates for $\beta_0$ and $\beta_1$, the intercept and slope terms for the linear regression # model that uses horsepower to predict *mpg* in the Auto data set.
+
+First, let us build the function `boot.fn()` that returns the regression coefficients of the linear model computed on the training set *index*:
+
+```{r chunk47}
+boot.fn=function(data,index)
+  return(coef(lm(mpg~horsepower,data=data,subset=index)))
+```
+
+First consider compute the function on the entire dataset
+
+```{r chunk48}
+boot.fn(Auto,1:392)
+```
+
+and afterwards on samples of size $n=392$ (with replacement). Obviously, the estimates are different.
+
+```{r chunk49}
+set.seed(1)
+boot.fn(Auto,sample(392,392,replace=T))
+boot.fn(Auto,sample(392,392,replace=T))
+```
+
+Finally, consider the bootstrap
+
+```{r chunk50}
+boot(Auto,boot.fn,1000)
+```
+
+and we compare the estimate of the standard errors with those obtained through the summary of the model. 
+
+```{r chunk51}
+summary(lm(mpg~horsepower,data=Auto))$coef
+```
+
+We remark that the bootstrap approach does not rely on any of the assumptions of the linear model, and so it is likely giving a more accurate estimate of the standard errors of 
+$\hat{\beta_0}$ and $\hat{\beta_1} than is the `summary()` function.
+
+Below we compute the bootstrap standard error estimates and the standard linear regression estimates that result from fitting the quadratic model to the data.
+
+```{r chunk52}
+boot.fn=function(data,index)
+  coefficients(lm(mpg~horsepower+I(horsepower^2),data=data,subset=index))
+set.seed(1)
+boot(Auto,boot.fn,1000)
+summary(lm(mpg~horsepower+I(horsepower^2),data=Auto))$coef
+```
+
+
+## 5.4. Choosing Among Models Using the Validation-Set Approach and Cross-Validation
+
+
+It is possible to choose among a set of models of different
+sizes using $C_p$, BIC, and adjusted $R^2$. 
+
+We also can do this using the validation set and cross-validation approaches.
+
+In order for these approaches to yield accurate estimates of the test
+error, we must use *only the training observations* to perform all aspects of model-fitting---including variable
+  selection.  Therefore, the determination of which model of a
+given size is best must be made using *only the training observations*. This point is subtle but important.
+
+If the full data set is used to perform the best subset selection
+step, the validation set errors and cross-validation errors that we
+obtain will not be accurate estimates of the test error.
+
+In order to use the validation set approach, we begin by splitting the
+observations into a training set and a test set.  We do this by creating a
+random vector, `train`, of elements equal to `TRUE` if the
+corresponding observation is in the training set, and `FALSE`
+otherwise.  The vector `test` has a `TRUE` if the
+observation is in the test set, and a `FALSE` otherwise. Note
+the `!` in the command to create `test` causes `TRUE`s to be
+switched to `FALSE`s and vice versa. We also set a random seed
+so that the user will obtain the same training set/test set split.
+
+Consider `Hitters`data and check the presence of missing data
+
+```{r chunk52a}
+attach(Hitters)
+missing_Hitters=sum(is.na(Hitters$Salary))
+missing_Hitters
+```
+
+Hence we see that `Salary` is missing for `r missing_Hitters` players. The `na.omit()` function removes all of the rows that have missing values in any variable.
+
+```{r chunk52b}
+Hitters <- na.omit(Hitters)
+dim(Hitters)
+sum(is.na(Hitters))
+```
+
+In order to use the validation set approach, we begin by splitting the
+observations into a training set and a test set.
+
+```{r chunk53}
+set.seed(1)
+train <- sample(c(TRUE, FALSE), nrow(Hitters),
+    replace = TRUE)
+test <- (!train)
+```
+
+Now, we apply `regsubsets()` in the `leaps` library to the training set in order to perform best subset selection. The `summary()`function also returns $R^2$, RSS, adjusted $R^2$, $C_p$, and BIC.
+We can examine these to try to select the best overall model.
+
+
+```{r chunk54}
+library(leaps)
+regfit.best <- regsubsets(Salary ~ .,
+    data = Hitters[train, ], nvmax = 19)
+```
+
+Notice that we subset the `Hitters` data frame directly in the call in order to access only the training subset of the data, using the expression `Hitters[train, ]`.
+We now compute the validation set error for the best model of each model size. We first make a model matrix
+from the test data.
+
+```{r chunk55}
+test.mat <- model.matrix(Salary ~ ., data = Hitters[test, ])
+test.mat
+```
+
+The `model.matrix()` function is used in many regression
+packages for building an ``X'' matrix from data. In particular, `model.matrix()` creates a design (or model) matrix, e.g., by expanding factors to a set of dummy variables (depending on the contrasts) and expanding interactions similarly.
+
+ Now we run a loop,
+and for each size `i`, we extract the coefficients from
+`regfit.best` for the best model of that size,  multiply them into
+the appropriate columns of the test model matrix to form the
+predictions, and compute the test MSE.
+
+```{r chunk56}
+val.errors <- rep(NA, 19)
+for (i in 1:19) {
+ coefi <- coef(regfit.best, id = i)
+ pred <- test.mat[, names(coefi)] %*% coefi
+ val.errors[i] <- mean((Hitters$Salary[test] - pred)^2)
+}
+```
+
+We find that the best model is the one that contains seven variables.
+
+```{r chunk57}
+val.errors
+which.min(val.errors)
+min.val.errors=which.min(val.errors)
+coef(regfit.best, min.val.errors)
+```
+
+
+This was a little tedious, partly because there is no `predict()` method for `regsubsets()`.
+Since we will be using this function again, we can capture our steps above and write our own predict method.
+
+
+```{r chunk58}
+ predict.regsubsets <- function(object, newdata, id, ...) {
+  form <- as.formula(object$call[[2]])
+  mat <- model.matrix(form, newdata)
+  coefi <- coef(object, id = id)
+  xvars <- names(coefi)
+  mat[, xvars] %*% coefi
+ }
+```
+
+Our function pretty much mimics what we did above. The only complex part is how we extracted the formula used in the call to `regsubsets()`. We demonstrate how we use this function below, when we do cross-validation.
+
+Finally, we perform best subset selection on the full data set, and select the best seven-variable model. It is important that we make use of  the full data set in order to obtain more accurate coefficient estimates. Note that we perform best subset selection on the full data set and select the best seven-variable model, rather than simply using the variables that were obtained from the training set, because the best seven-variable model on the full data set may differ from the corresponding model on the training set.
+
+```{r chunk59}
+regfit.best <- regsubsets(Salary ~ ., data = Hitters,
+    nvmax = 19)
+coef(regfit.best, 7)
+```
+
+In fact, we see that the best seven-variable model on the full data set has a different set of variables than the best seven-variable model on the training set.
+
+We now try to choose among the models of different sizes using cross-validation.
+This approach is somewhat involved, as we  must perform best subset selection <span style="color:magenta;">*within each of the $k$ training sets*.</span>
+ First, we create a  vector that allocates each observation to one of <span style="color:blue;">$k=10$</span> folds, and we create
+a matrix in which we will store the results.
+
+```{r chunk60}
+k <- 10
+n <- nrow(Hitters)
+set.seed(1)
+folds <- sample(rep(1:k, length = n))
+cv.errors <- matrix(NA, k, 19,
+    dimnames = list(NULL, paste(1:19)))
+```
+
+<span style="color:red;">**Now we write a for loop that performs cross-validation.** </span> In the $j$th fold, the elements of `folds` that equal `j` are in the test set, and the remainder are in the training set. We make our predictions for each model size (using our new
+`predict()` method), compute the test errors on the appropriate subset, and
+store them in the appropriate slot in the matrix `cv.errors`. Note that in the following code `R` will automatically use our `predict.regsubsets()` function when we call `predict()` because the `best.fit` object has class `regsubsets`.
+
+```{r chunk61}
+for (j in 1:k) {
+  best.fit <- regsubsets(Salary ~ .,
+       data = Hitters[folds != j, ],
+       nvmax = 19)
+  for (i in 1:19) {
+    pred <- predict(best.fit, Hitters[folds == j, ], id = i)
+    cv.errors[j, i] <-
+         mean((Hitters$Salary[folds == j] - pred)^2)
+   }
+}
+cv.errors
+```
+
+This has given us a $10 \times 19$ matrix, of which the $(j,i)$th element  corresponds to the test MSE for the $j$th
+cross-validation fold for the best $i$-variable model. We use the `apply()` function to average over the columns of this matrix in order to obtain a vector for which the $i$th element is the cross-validation error for the $i$-variable model.
+
+```{r chunk62}
+mean.cv.errors <- apply(cv.errors, 2, mean)
+mean.cv.errors
+par(mfrow = c(1, 1))
+plot(mean.cv.errors, type = "b")
+select_mean.cv.errors=which.min(mean.cv.errors)
+select_mean.cv.errors
+```
+
+We see that cross-validation selects a `r select_mean.cv.errors`-variable model. We now perform best subset selection on the full data set in order to obtain the `r select_mean.cv.errors`-variable model.
+
+```{r chunk63}
+reg.best <- regsubsets(Salary ~ ., data = Hitters,
+    nvmax = 19)
+coef(reg.best, 10)
+```

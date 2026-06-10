@@ -1,0 +1,452 @@
+---
+title: "StatLearning 2024/25"
+output: html_document
+---
+
+# Lab activity 6: Linear Methods for Classification - Part II
+
+
+## 6.1. Linear Discriminant Analysis (LDA)
+
+Consider again the `Default` data in the `ISLR2` library
+
+```{r chunk1}
+library(ISLR2)
+attach(Default)
+N<-nrow(Default)
+str(Default)
+```
+
+First, take a look at the data
+
+```{r}
+pairs(Default, col="red", pch=20, cex=0.5)
+plot(income, balance, pch=20, cex=0.5, col = ifelse(student=="Yes",'blue','gray'))
+plot(income, balance, pch=20, cex=0.5, col = ifelse(default=="Yes",'red','gray'))
+plot(balance, default, pch=20, cex=0.5, col = ifelse(student=="Yes",'red','gray'))
+```
+
+Now consider Linear Discriminant Analysis that is implemented in the `MASS: Support Functions and Datasets  support Venables and Ripley book "Modern Applied Statistics with S" trough the function `lda()`. 
+
+```{r chunk2}
+library(MASS)
+lda.fit=lda(default~balance+student) 
+lda.fit
+```
+Once we get the model, we can compute the predicted value using the `predict()` function and afterwards the confusion matrix. Finally, we compute the accuracy and the misclassification error.
+
+```{r chunk3}
+lda.predict=predict(lda.fit,Default)
+head(cbind(lda.predict$x,lda.predict$posterior, lda.predict$class))
+pred.class=lda.predict$class
+table(pred.class,default)   # confusion matrix
+
+confMat.LDA<-addmargins(table(pred.class,default))
+confMat.LDA
+accuracy.LDA=(confMat.LDA[1,1]+confMat.LDA[2,2])/N*100 # accuracy
+accuracy.LDA  
+Err.LDA=100-accuracy.LDA # misclassification error
+Err.LDA
+```
+
+## 6.2. Comparison between LDA and logistic regression
+
+Now fit the logistic regression, using the same predictors: balance and student.
+
+```{r chunk4}
+glm.fit=glm(default~balance+student, family=binomial, data=Default)
+summary(glm.fit, digits=3)
+glm.predict=predict.glm(glm.fit,Default)
+glm.probs=predict.glm(glm.fit,type="response")
+glm.pred=rep("No",N)
+glm.pred[glm.probs>.5]="Yes" # assign "Up" for units with P(Y="Up")>0.5
+table(glm.pred,Default$default) # confusion matrix
+confMat.LR<-addmargins(table(glm.pred,Default$default))
+confMat.LR
+accuracy.LR=(confMat.LR[1,1]+confMat.LR[2,2])/N*100 # accuracy
+accuracy.LR
+Err.LR=100-accuracy.LR # misclassification error
+Err.LR
+```
+
+And finally compare the results
+```{r chunk5}
+accuracy.LDA
+accuracy.LR
+```
+
+A more accurate model choice requires the analysis on a training set and on a test set. First, select  the training and test sets. As usual, we use the `createDataPartition()` function in `caret` library:
+
+```{r chunk6}
+library(caret)
+library(caret)
+table(Default$default)
+table(Default$default)/N*100
+
+set.seed(1500)
+alpha=0.7
+trainIndex <- createDataPartition(Default$default, p = alpha, 
+                                  list = FALSE, 
+                                  times = 1)
+Default_L<-Default[trainIndex,]
+nL<-dim(Default_L)[1]
+nL
+table(Default_L$default)
+table(Default_L$default)/nL*100
+
+Default_T<-Default[-trainIndex,]
+nT<-dim(Default_T)[1]
+nT
+table(Default_T$default)
+table(Default_T$default)/nT*100 
+
+```
+
+First, fit the model on the learning set
+
+```{r chunk7}
+lda.fit_L=lda(default~balance+student, Data=Default_L)  
+lda.predict_L=predict(lda.fit_L,Default_L)
+pred.class_L=lda.predict_L$class
+confMat.LDA_L=addmargins(table(pred.class_L,Default_L$default))
+confMat.LDA_L
+accuracy.LDA_L=(confMat.LDA_L[1,1]+confMat.LDA_L[2,2])/nL*100
+accuracy.LDA_L
+Err.LDA_L=100-accuracy.LDA_L
+Err.LDA_L
+```
+
+and then compute the fitted model on the test set and compare the accuracies on the learning and test sets:
+
+```{r chunk8}
+lda.predict_T=predict(lda.fit_L,Default_T)
+pred.class_T=lda.predict_T$class
+confMat.LDA_T=addmargins(table(pred.class_T,Default_T$default))
+confMat.LDA_T
+accuracy.LDA_T=(confMat.LDA_T[1,1]+confMat.LDA_T[2,2])/nT*100
+accuracy.LDA_T
+Err.LDA_T=100-accuracy.LDA_T
+Err.LDA_T
+
+accuracy.LDA_T
+accuracy.LDA_L
+```
+
+Now consider the logistic regression model on the same datasets. First consider the learning set
+
+```{r chunk9}
+glm.fit_L=glm(default~balance+student, family=binomial, data=Default_L)
+summary(glm.fit_L, digits=3)
+glm.probs_L=predict.glm(glm.fit_L,type="response")
+glm.pred_L=rep("No",nL)
+glm.pred_L[glm.probs_L>.5]="Yes" # assign "Up" for units with P(Y="Up")>0.5
+table(glm.pred_L,Default_L$default) # confusion matrix
+confMat.LR_L<-addmargins(table(glm.pred_L,Default_L$default))
+confMat.LR_L
+accuracy.LR_L=(confMat.LR_L[1,1]+confMat.LR_L[2,2])/nL*100
+accuracy.LR_L
+Err.LR_L=100-accuracy.LR_L
+Err.LR_L
+```
+
+and afterwards, compute the predicted values on the test set and the accuracy:
+
+```{r chunk10}
+glm.probs_T=predict.glm(glm.fit_L, newdata=Default_T, type="response") # note the option newdata
+glm.pred_T=rep("No",nT)
+glm.pred_T[glm.probs_T>.5]="Yes" # assign "Up" for units with P(Y="Up")>0.5
+table(glm.pred_T,Default_T$default) # confusion matrix
+confMat.LR_T<-addmargins(table(glm.pred_T,Default_T$default))
+confMat.LR_T
+accuracy.LR_T=(confMat.LR_T[1,1]+confMat.LR_T[2,2])/nT*100
+accuracy.LR_T
+Err.LR_T=100-accuracy.LR_T
+Err.LR_T
+```
+
+
+## 6.3. Analysis of the ROC curve and AUC
+
+There are many packages in `R` for the scoring analysis based on the ROC curve and the AUC. Here we consider the package `ROCR:  Visualizing the Performance of Scoring Classifiers`, see e.g.  https://www.r-bloggers.com/a-small-introduction-to-the-rocr-package/
+for details. `ROCR` is easy to use, with only three commands and reasonable default values for all optional parameters. 
+
+Every classifier evaluation using ROCR starts with creating a prediction object using the `prediction()` procedure. This function is used to transform the input data (which can be in vector, matrix, data frame, or list form) into a standardized format.
+
+Now compute a prediction object based on the predicted values, i.e. on the variable *glm.probs_T* of the logistic regression model.
+
+```{r chunk11}
+library(ROCR)
+contrasts(default)
+pred.t.LR_T=prediction(glm.probs_T, Default_T$default) # 
+```
+
+The procedure `performance()` generate a set of performance measure, see the ROCR package documentation for details. The option `measure="tpr"` in   means *true positive rate* and the option `measure="fpr"` in `x.measure` means *false positive rate*. We compute 
+
+```{r chunk12}
+perf.t.LR_T=performance(pred.t.LR_T, measure = "tpr", x.measure = "fpr") 
+```
+
+Finally  we can plot the ROC curve:
+
+```{r chunk13}
+plot(perf.t.LR_T,colorize=TRUE,lwd=2) 
+plot(perf.t.LR_T,colorize=TRUE,lwd=2, print.cutoffs.at=c(0.2,0.5,0.8)) 
+abline(a=0,b=1, lty=2)
+```
+
+The AUC can be computed using the *performance* function considering the option `measure="auc"`:
+```{r chunk14}
+LR_T.auc=performance(pred.t.LR_T, measure = "auc") 
+LR_T.auc@y.values[[1]]
+```
+
+Anagously, we plot the AUC curve and compute the AUC for the linear discriminant results.
+
+```{r chunk15}
+# LDA
+pred.t.LDA_T=prediction(lda.predict_T$posterior[,2], Default_T$default)
+perf.t.LDA_T=performance(pred.t.LDA_T, measure = "tpr", x.measure = "fpr")
+plot(perf.t.LDA_T,colorize=TRUE,lwd=2, print.cutoffs.at=c(0.2,0.5,0.8))
+abline(a=0,b=1, lty=2)
+LDA_T.auc=performance(pred.t.LDA_T, measure = "auc") 
+LDA_T.auc@y.values[[1]]
+```
+
+### Case study: wine data classification
+
+These data are the results of a chemical analysis of wines grown in the same region in Italy but derived from three different cultivars in Italy. The analysis determined the quantities of the following 13 chemical concentrations found in each of the three types of wines:
+
+1) Alcohol 
+2) Malic acid 
+3) Ash 
+4) Alcalinity of ash 
+5) Magnesium 
+6) Total phenols 
+7) Flavanoids 
+8) Nonflavanoid phenols 
+9) Proanthocyanins 
+10) Color intensity 
+11) Hue 
+12) OD280/OD315 of diluted wines 
+13) Proline 
+
+```{r}
+data(wine, package='rattle')
+attach(wine)
+str(wine)
+head(wine)
+N<-nrow(wine)
+pairs(wine[2:14], col=factor(wine$Type), pch=20, cex=0.3)
+```
+
+Now consider linear discriminant analysis
+
+```{r}
+wine.lda <- lda(Type ~ ., data=wine)
+wine.lda
+```
+
+This means that the first discriminant function is a linear combination of the 
+variables: \[ −0.403∗Alcohol+0.165∗Malic+...+−0.003∗Proline. \] 
+For convenience, the value for each discriminant function 
+(eg. the first discriminant function) are scaled so that their mean value 
+is zero and its variance is one.
+
+The “proportion of trace” that is printed when you type “wine.lda” 
+(the variable returned by the lda() function) is the percentage 
+separation achieved by each discriminant function. 
+For example, for the wine data we get the same 
+values as just calculated (68.75% and 31.25%).
+
+```{r}
+wine.lda.values <- predict(wine.lda)
+wine.lda.values$posterior
+wine.lda.values$class
+```
+
+Scatterplots of the Discriminant Functions: we can obtain a scatterplot of the best two discriminant functions, with the data points labelled by cultivar.
+
+```{r}
+plot(wine.lda.values$x[,1],wine.lda.values$x[,2],  cex=0.8,pch=20, xlab="LDA axis 1", ylab="LDA axis 2") # make a scatterplot
+text(wine.lda.values$x[,1],wine.lda.values$x[,2],Type,cex=0.7,pos=4,col="red") # add labels
+plot(wine.lda.values$x[,1],wine.lda.values$x[,2],cex=0.8, col=Type, pch=20, xlab="LDA axis 1", ylab="LDA axis 2") 
+plot(wine.lda.values$x[,1],wine.lda.values$x[,2],cex=0.8, col=c("blue","red","green")[Type], pch=20, xlab="LDA axis 1", ylab="LDA axis 2") 
+```
+
+From the scatterplot of the first two discriminant functions, 
+we can see that the wines from the three cultivars are well separated 
+in the scatterplot. The first discriminant function (x-axis) separates 
+cultivars 1 and 3 very well, but doesn’t not perfectly separate 
+cultivars 1 and 3, or cultivars 2 and 3.
+
+The second discriminant function (y-axis) achieves a fairly good 
+separation of cultivars 1 and 3, and cultivars 2 and 3, although 
+it is not totally perfect.
+
+
+To achieve a very good separation of the three cultivars, it would be best to use both 
+the first and second discriminant functions together, since the first discriminant function can separate cultivars 1 and 3 very well, and the second discriminant function can separate  cultivars 1 and 2, and cultivars 2 and 3, reasonably well. 
+
+```{r}
+wine.lda.values$class
+confMat.LDA<-confusionMatrix(Type,wine.lda.values$class)$table
+confMat.LDA
+accuracy.LDA<-sum(diag(confMat.LDA))/N*100
+accuracy.LDA
+```
+
+#### Analysis on training and test set
+
+To begin with, prepare the training and the test sets.
+```{r}
+set.seed(1500)
+alpha=0.7
+trainIndex <- createDataPartition(wine$Type, p = alpha, 
+                                  list = FALSE, 
+                                  times = 1)
+wine_L<-wine[trainIndex,]
+nL<-nrow(wine_L)
+nL
+table(wine_L$Type)
+round(table(wine_L$Type)/nL*100,2)
+
+wine_T<-wine[-trainIndex,]
+nT<-nrow(wine_T)
+nT
+table(wine_T$Type)
+round(table(wine_T$Type)/nT*100,2) 
+```
+
+Now analyze the training data.
+
+```{r}
+lda.fit_L=lda(Type ~ ., data=wine_L)  
+lda.predict_L=predict(lda.fit_L,wine_L)
+pred.class_L=lda.predict_L$class
+confMat.LDA_L=table(wine_L$Type,pred.class_L)
+confMat.LDA_L
+accuracy.LDA_L<-sum(diag(confMat.LDA_L))/nL*100
+accuracy.LDA_L
+```
+
+and then fit the model on the test data
+
+```{r}
+lda.predict_T=predict(lda.fit_L,wine_T)
+pred.class_T=lda.predict_T$class
+confMat.LDA_T=table(wine_T$Type,pred.class_T)
+confMat.LDA_T
+accuracy.LDA_T<-sum(diag(confMat.LDA_T))/nT*100
+accuracy.LDA_T
+accuracy.LDA_L
+```
+
+Finally compare the results on both the training and the test sets
+
+```{r}
+accuracy.LDA_T
+accuracy.LDA_L
+```
+
+
+## 6.4. Quadratic Discriminant Analysis 
+
+Consider the MBA admission data that provide admission data for applicants to graduate schools in business. The objective is to use the GPA and GMAT scores to predict the likelihood of admission (admit, notadmit, and borderline).
+
+*GPA*: Grade Point Average, it is a score used to evaluate your success during the entirety of your degree programme </br>
+*GMAT* Graduate Management Admission Test, it plays an important role in the MBA Admission process. </br>
+
+```{r chunk16}
+url <- 'http://www.biz.uiowa.edu/faculty/jledolter/DataMining/admission.csv'
+admit <- read.csv(url)
+str(admit)
+head(admit)
+N<-nrow(admit)
+adm=data.frame(admit)
+```
+
+Lets start by doing the LDA, notice that in this case we have 3 classes:
+
+```{r chunk17}
+library(MASS)
+lda.fit=lda(De~.,adm)
+lda.fit
+lda.pred=predict(lda.fit, admit)
+lda.class=lda.pred$class
+table(lda.class,admit$De)
+accuracy.LDA<-sum(diag(table(lda.class,admit$De)))/N*100
+accuracy.LDA
+```
+
+Now using LDA to predict a new student. The results can be interpreted as follows: the new student belongs to *admit* with probability 0.518, to *border* with probability 0.482 and to *notadmit* with negligible probability
+
+```{r chunk18}
+predict(lda.fit,newdata=data.frame(GPA=3.21,GMAT=497))
+```
+
+Now perform QDA
+
+```{r chunk19}
+qda.fit=qda(De~.,admit)
+qda.fit
+qda.pred=predict(qda.fit, admit)
+qda.class=qda.pred$class
+table(qda.class,admit$De)
+accuracy.QDA<-sum(diag(table(qda.class,admit$De)))/N*100
+accuracy.QDA
+accuracy.LDA
+```
+and compare the results on the unit $(GPA=3.21,GMAT=497$). Here QDA provides a clearer prediction than LDA:
+ 
+```{r chunk20}
+predict(qda.fit,newdata=data.frame(GPA=3.21,GMAT=497))
+predict(lda.fit,newdata=data.frame(GPA=3.21,GMAT=497))
+```
+
+Which model is best? In this case, the sample size is quite small. Therefore
+in order to answer this question, we evaluate the LDA by randomly 
+selecting 60 of 85 students, estimating the parameters on the training data, and 
+classifying the remaining 25 students of the holdout sample. We repeat this 100 times.
+
+```{r}
+N<-nrow(admit)
+nL=60
+nT=N-nL
+rep=100
+```
+
+Consider first LDA:
+```{r}
+set.seed(123456789)
+delta.lda=dim(rep)
+for (k in 1:rep) {
+  train=sample(1:N,nL)
+  ## LDA
+  lda.fit=lda(De~.,admit[train,])
+  predict(lda.fit,admit[-train,])$class
+  table.lda=table(admit$De[-train],predict(lda.fit,admit[-train,])$class)
+  delta.lda[k]=(nT-sum(diag(table.lda)))/nT
+}
+mean.delta.lda=mean(delta.lda) # mean classification error LDA
+mean.delta.lda 
+```
+
+and afterwards model data through QDA:
+
+```{r}
+set.seed(123456789)
+delta.qda=dim(rep)
+for (k in 1:rep) {
+  train=sample(1:N,nL)
+  ## quadratic discriminant analysis
+  qda.fit=qda(De~.,admit[train,])
+  predict(qda.fit,admit[-train,])$class
+  table.qda=table(admit$De[-train],predict(qda.fit,admit[-train,])$class)
+  delta.qda[k]=(nT-sum(diag(table.qda)))/nT
+}
+mean.delta.qda=mean(delta.qda) # mean classification error LDA
+mean.delta.qda 
+```
+
+
+
